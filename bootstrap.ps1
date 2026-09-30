@@ -3,8 +3,7 @@
 param(
     [switch]$DryRun,
     [switch]$SkipInstall,
-    [string]$OmpDir = "$env:USERPROFILE\.omp\agent",
-    [string]$CloakBrowserPath = "D:\Thanhpk\AI\cloakbrowser\mcp-server-full.mjs"
+    [string]$OmpDir = "$env:USERPROFILE\.omp\agent"
 )
 
 $ErrorActionPreference = "Stop"
@@ -75,7 +74,7 @@ if (-not $SkipInstall) {
             npm install -g gitnexus --silent
             $gitnexusBin = Get-Command "gitnexus" -ErrorAction SilentlyContinue
             if ($gitnexusBin -and $gitnexusBin.Source) {
-                $absGitnexus = $gitnexusBin.Source -replace '\\', '\\'
+                $absGitnexus = ($gitnexusBin.Source).Replace('\', '\\')
                 $gitnexusArgsJson = '"/c", "' + $absGitnexus + '", "mcp"'
             }
         } catch {
@@ -91,10 +90,11 @@ if (-not $SkipInstall) {
     if (-not $DryRun) {
         try {
             npm install -g @upstash/context7-mcp --silent
-            $npmGlobalRoot = npm root -g
+            $npmGlobalRoot = (cmd /c npm root -g) | Out-String
+            $npmGlobalRoot = $npmGlobalRoot.Trim()
             $ctxJsPath = Join-Path $npmGlobalRoot "@upstash\context7-mcp\dist\index.js"
             if (Test-Path $ctxJsPath) {
-                $absCtxJs = $ctxJsPath -replace '\\', '\\'
+                $absCtxJs = ($ctxJsPath).Replace('\', '\\')
                 $context7Command = '"node"'
                 $context7ArgsJson = '"' + $absCtxJs + '"'
             }
@@ -103,6 +103,28 @@ if (-not $SkipInstall) {
         }
     }
 }
+
+# Dynamic path resolution (runs even with -SkipInstall): prefer local absolute paths, fallback to npx
+try {
+    $gn = Get-Command "gitnexus" -ErrorAction SilentlyContinue
+    if ($gn -and $gn.Source) {
+        $absGn = ($gn.Source).Replace('\', '\\')
+        $gitnexusArgsJson = '"/c", "' + $absGn + '", "mcp"'
+    }
+} catch {}
+try {
+    $npmRoot2 = (cmd /c npm root -g 2>$null) | Out-String
+    $npmRoot2 = $npmRoot2.Trim()
+    if ($npmRoot2) {
+        $ctxP2 = Join-Path $npmRoot2 "@upstash\\context7-mcp\\dist\\index.js"
+        if (Test-Path $ctxP2) {
+            $absCtx2 = ($ctxP2).Replace('\', '\\')
+            $context7Command = '"node"'
+            $context7ArgsJson = '"' + $absCtx2 + '"'
+        }
+    }
+} catch {}
+
 Write-Host "==> Ensuring directory $OmpDir exists..." -ForegroundColor Cyan
 if (-not $DryRun) {
     New-Item -ItemType Directory -Force -Path $OmpDir | Out-Null
@@ -113,7 +135,6 @@ if (-not $DryRun) {
 #   gitnexus:          https://github.com/abhigyanpatwari/GitNexus (global install + absolute path avoids npx cold-start timeout)
 #   mcp-atlassian:     https://mcp-atlassian.soomiles.com/docs/installation (pinned via uvx --from)
 #   context7:          https://github.com/upstash/context7 (optional CONTEXT7_API_KEY for higher rate limits)
-#   cloakbrowser:      local project server
 $mcpTemplate = @'
 {
   "mcpServers": {
@@ -142,10 +163,6 @@ $mcpTemplate = @'
       "env": {
         "CONTEXT7_API_KEY": "__CONTEXT7_API_KEY__"
       }
-    },
-    "cloakbrowser": {
-      "command": "node",
-      "args": ["__CLOAKBROWSER_PATH__"]
     }
   }
 }
@@ -312,20 +329,14 @@ $jiraToken = Get-EnvOrPrompt -EnvName "JIRA_PERSONAL_TOKEN" -Prompt "Jira Person
 $confUrl   = Get-EnvOrPrompt -EnvName "CONFLUENCE_URL" -Prompt "Confluence URL" -Default "https://conf.cybertech.vn"
 $confToken = Get-EnvOrPrompt -EnvName "CONFLUENCE_PERSONAL_TOKEN" -Prompt "Confluence Personal Token" -Default "YOUR_CONFLUENCE_PERSONAL_TOKEN"
 $ctxKey    = Get-EnvOrPrompt -EnvName "CONTEXT7_API_KEY" -Prompt "Context7 API Key" -AllowEmpty
-$escapedCloakBrowser = $CloakBrowserPath -replace '\\', '\\'
 
-$mcpJson = $mcpTemplate.Replace("__JIRA_URL__", $jiraUrl).Replace("__JIRA_PERSONAL_TOKEN__", $jiraToken).Replace("__CONFLUENCE_URL__", $confUrl).Replace("__CONFLUENCE_PERSONAL_TOKEN__", $confToken).Replace("__CLOAKBROWSER_PATH__", $escapedCloakBrowser).Replace("__GITNEXUS_ARGS__", $gitnexusArgsJson).Replace("__CONTEXT7_CMD__", $context7Command).Replace("__CONTEXT7_ARGS__", $context7ArgsJson)
+$mcpJson = $mcpTemplate.Replace("__JIRA_URL__", $jiraUrl).Replace("__JIRA_PERSONAL_TOKEN__", $jiraToken).Replace("__CONFLUENCE_URL__", $confUrl).Replace("__CONFLUENCE_PERSONAL_TOKEN__", $confToken).Replace("__GITNEXUS_ARGS__", $gitnexusArgsJson).Replace("__CONTEXT7_CMD__", $context7Command).Replace("__CONTEXT7_ARGS__", $context7ArgsJson)
 if ($ctxKey) {
     $mcpJson = $mcpJson.Replace("__CONTEXT7_API_KEY__", $ctxKey)
 } else {
     # Anonymous mode: drop the env block so no placeholder key is ever sent.
     $mcpJson = $mcpJson -replace ',\s*"env":\s*\{\s*"CONTEXT7_API_KEY":\s*"__CONTEXT7_API_KEY__"\s*\}', ''
 }
-if (-not (Test-Path $CloakBrowserPath)) {
-    Write-Warning "CloakBrowser server not found at '$CloakBrowserPath' - omitting cloakbrowser from mcp.json"
-    $mcpJson = $mcpJson -replace ',\s*"cloakbrowser":\s*\{\s*"command":\s*"node",\s*"args":\s*\["[^\]]*"\]\s*\}', ''
-}
-
 $files = @{
     "mcp.json"   = $mcpJson
     "models.yml" = $modelsTemplate.Replace("__AI_BASE_URL__", $aiBaseUrl).Replace("__AI_API_KEY__", $aiKey)

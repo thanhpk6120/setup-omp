@@ -16,8 +16,6 @@ Script bootstrap thiết lập môi trường và cấu hình `.omp` (`mcp.json`
 4. **context7**: Tài liệu [Upstash Context7 MCP](https://github.com/upstash/context7)
    - Lệnh: `cmd /c npx -y @upstash/context7-mcp`
    - Biến môi trường (optional, tăng rate limit): `CONTEXT7_API_KEY` — không có thì chạy anonymous, bootstrap tự bỏ block `env`
-5. **cloakbrowser**: Local script `node D:\Thanhpk\AI\cloakbrowser\mcp-server-full.mjs`
-   - Bootstrap kiểm tra `Test-Path` trước, máy không có file thì bỏ khỏi `mcp.json` kèm cảnh báo
 
 > Ghi chú: `mcp.json` không còn trường `$schema` vì URL schema cũ trả 404.
 ## Chạy bootstrap

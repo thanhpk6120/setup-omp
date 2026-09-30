@@ -39,9 +39,6 @@ try {
     if ($mcpJson.mcpServers.'company-atlassian'.args[0] -ne "--from" -or $mcpJson.mcpServers.'company-atlassian'.args[1] -notlike "mcp-atlassian==*") {
         throw "ASSERTION FAILED: company-atlassian should pin version via --from mcp-atlassian==..."
     }
-    if (-not $mcpJson.mcpServers.cloakbrowser) {
-        throw "ASSERTION FAILED: cloakbrowser missing in mcp.json"
-    }
     if (-not $mcpJson.mcpServers.context7) {
         throw "ASSERTION FAILED: context7 missing in mcp.json"
     }
