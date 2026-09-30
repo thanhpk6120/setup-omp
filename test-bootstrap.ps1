@@ -3,8 +3,8 @@ $ErrorActionPreference = "Stop"
 
 $tempDir = Join-Path $env:TEMP ("omp-test-" + [System.Guid]::NewGuid().ToString("N"))
 try {
-    $env:ROUTER_BASE_URL = "https://test.local"
-    $env:ROUTER_API_KEY = "test-key-abc"
+    $env:AI_BASE_URL = "https://test.local"
+    $env:AI_API_KEY = "test-key-abc"
     $env:JIRA_URL = "https://test.jira"
     $env:JIRA_PERSONAL_TOKEN = "test-jira-token"
     $env:CONFLUENCE_URL = "https://test.conf"
@@ -48,7 +48,7 @@ try {
     # Assert models.yml interpolated env var
     $modelsYml = Get-Content (Join-Path $tempDir "models.yml") -Raw
     if (-not $modelsYml.Contains("apiKey: test-key-abc")) {
-        throw "ASSERTION FAILED: models.yml did not interpolate ROUTER_API_KEY"
+        throw "ASSERTION FAILED: models.yml did not interpolate AI_API_KEY"
     }
 
     # Assert UV_CACHE_DIR is expanded without literal placeholders

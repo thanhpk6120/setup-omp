@@ -154,9 +154,9 @@ $mcpTemplate = @'
 $modelsTemplate = @'
 providers:
   9router:
-    baseUrl: __ROUTER_BASE_URL__
+    baseUrl: __AI_BASE_URL__
     api: openai-completions
-    apiKey: __ROUTER_API_KEY__
+    apiKey: __AI_API_KEY__
     compat:
       supportsDeveloperRole: true
       supportsReasoningEffort: true
@@ -252,22 +252,66 @@ dev:
 '@
 
 Write-Host "==> Preparing configuration files..." -ForegroundColor Cyan
-function Get-ConfigValue {
-    param([string]$EnvName, [string]$Prompt, [string]$Default)
-    $val = [Environment]::GetEnvironmentVariable($EnvName)
+function Load-Env {
+    param([string]$EnvPath = (Join-Path $PSScriptRoot ".env"))
+    if (Test-Path $EnvPath) {
+        Write-Host "  -> Loading environment from $EnvPath..." -ForegroundColor Cyan
+        Get-Content $EnvPath | ForEach-Object {
+            $line = $_.Trim()
+            if ($line -and -not $line.StartsWith("#")) {
+                $idx = $line.IndexOf("=")
+                if ($idx -gt 0) {
+                    $key = $line.Substring(0, $idx).Trim()
+                    $val = $line.Substring($idx + 1).Trim()
+                    if (($val.StartsWith('"') -and $val.EndsWith('"')) -or ($val.StartsWith("'") -and $val.EndsWith("'"))) {
+                        $val = $val.Substring(1, $val.Length - 2)
+                    }
+                    if (-not [string]::IsNullOrWhiteSpace($key) -and -not [string]::IsNullOrWhiteSpace($val)) {
+                        [Environment]::SetEnvironmentVariable($key, $val, "Process")
+                    }
+                }
+            }
+        }
+    }
+}
+Load-Env
+
+function Get-EnvOrPrompt {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$EnvName,
+        [Parameter(Mandatory = $true)]
+        [string]$Prompt,
+        [string]$Default,
+        [switch]$AllowEmpty
+    )
+    $val = [Environment]::GetEnvironmentVariable($EnvName, "Process")
     if (-not [string]::IsNullOrWhiteSpace($val)) { return $val }
-    $inputVal = Read-Host "$Prompt (Default: $Default)"
-    if ([string]::IsNullOrWhiteSpace($inputVal)) { return $Default }
-    return $inputVal.Trim()
+    
+    $hasDefault = $PSBoundParameters.ContainsKey('Default')
+    while ($true) {
+        $promptStr = if ($hasDefault) { "$Prompt (Default: $Default)" } else { $Prompt }
+        $inputVal = Read-Host $promptStr
+        if (-not [string]::IsNullOrWhiteSpace($inputVal)) {
+            return $inputVal.Trim()
+        }
+        if ($hasDefault) {
+            return $Default
+        }
+        if ($AllowEmpty) {
+            return ""
+        }
+        Write-Host "Error: '$EnvName' is required. Please provide a value." -ForegroundColor Red
+    }
 }
 
-$routerUrl = Get-ConfigValue "ROUTER_BASE_URL" "Provider Base URL" "https://9router.thanhpk.io.vn/v1"
-$routerKey = Get-ConfigValue "ROUTER_API_KEY" "Provider API Key" "YOUR_ROUTER_API_KEY"
-$jiraUrl   = Get-ConfigValue "JIRA_URL" "Jira URL" "https://jira.cybertech.vn"
-$jiraToken = Get-ConfigValue "JIRA_PERSONAL_TOKEN" "Jira Personal Token" "YOUR_JIRA_PERSONAL_TOKEN"
-$confUrl   = Get-ConfigValue "CONFLUENCE_URL" "Confluence URL" "https://conf.cybertech.vn"
-$confToken = Get-ConfigValue "CONFLUENCE_PERSONAL_TOKEN" "Confluence Personal Token" "YOUR_CONFLUENCE_PERSONAL_TOKEN"
-$ctxKey    = Get-ConfigValue "CONTEXT7_API_KEY" "Context7 API Key" ""
+$aiBaseUrl = Get-EnvOrPrompt -EnvName "AI_BASE_URL" -Prompt "AI Base URL" -Default "https://9router.thanhpk.io.vn/v1"
+$aiKey     = Get-EnvOrPrompt -EnvName "AI_API_KEY" -Prompt "AI API Key"
+$jiraUrl   = Get-EnvOrPrompt -EnvName "JIRA_URL" -Prompt "Jira URL" -Default "https://jira.cybertech.vn"
+$jiraToken = Get-EnvOrPrompt -EnvName "JIRA_PERSONAL_TOKEN" -Prompt "Jira Personal Token" -Default "YOUR_JIRA_PERSONAL_TOKEN"
+$confUrl   = Get-EnvOrPrompt -EnvName "CONFLUENCE_URL" -Prompt "Confluence URL" -Default "https://conf.cybertech.vn"
+$confToken = Get-EnvOrPrompt -EnvName "CONFLUENCE_PERSONAL_TOKEN" -Prompt "Confluence Personal Token" -Default "YOUR_CONFLUENCE_PERSONAL_TOKEN"
+$ctxKey    = Get-EnvOrPrompt -EnvName "CONTEXT7_API_KEY" -Prompt "Context7 API Key" -AllowEmpty
 $escapedCloakBrowser = $CloakBrowserPath -replace '\\', '\\'
 
 $mcpJson = $mcpTemplate.Replace("__JIRA_URL__", $jiraUrl).Replace("__JIRA_PERSONAL_TOKEN__", $jiraToken).Replace("__CONFLUENCE_URL__", $confUrl).Replace("__CONFLUENCE_PERSONAL_TOKEN__", $confToken).Replace("__CLOAKBROWSER_PATH__", $escapedCloakBrowser).Replace("__GITNEXUS_ARGS__", $gitnexusArgsJson).Replace("__CONTEXT7_CMD__", $context7Command).Replace("__CONTEXT7_ARGS__", $context7ArgsJson)
@@ -284,7 +328,7 @@ if (-not (Test-Path $CloakBrowserPath)) {
 
 $files = @{
     "mcp.json"   = $mcpJson
-    "models.yml" = $modelsTemplate.Replace("__ROUTER_BASE_URL__", $routerUrl).Replace("__ROUTER_API_KEY__", $routerKey)
+    "models.yml" = $modelsTemplate.Replace("__AI_BASE_URL__", $aiBaseUrl).Replace("__AI_API_KEY__", $aiKey)
     "config.yml" = $configTemplate
 }
 foreach ($entry in $files.GetEnumerator()) {
@@ -329,7 +373,7 @@ if (Test-Path $srcSkills) {
 }
 
 Write-Host "`nBootstrap finished. Set required environment variables if using Jira or Router:" -ForegroundColor Green
-Write-Host '  $env:ROUTER_API_KEY = "..."'
+Write-Host '  $env:AI_API_KEY = "..."'
 Write-Host '  $env:JIRA_PERSONAL_TOKEN = "..."'
 Write-Host '  $env:CONFLUENCE_PERSONAL_TOKEN = "..."'
 Write-Host '  $env:CONTEXT7_API_KEY = "..." (optional, higher rate limits)'
