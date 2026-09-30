@@ -21,6 +21,18 @@ Script bootstrap thiết lập môi trường và cấu hình `.omp` (`mcp.json`
    - Biến môi trường (optional, tăng rate limit): `CONTEXT7_API_KEY` — không có thì chạy anonymous, bootstrap tự bỏ block `env`
 
 > Ghi chú: `mcp.json` không còn trường `$schema` vì URL schema cũ trả 404.
+## Cài đặt nhanh (1 dòng lệnh duy nhất)
+
+Mở PowerShell trên máy mới và chạy:
+
+```powershell
+irm https://raw.githubusercontent.com/thanhpk6120/setup-omp/main/install.ps1 | iex
+```
+
+---
+
+## Chạy thủ công từ repo
+
 ## Chạy bootstrap
 
 ```powershell
