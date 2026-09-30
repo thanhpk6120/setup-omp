@@ -10,6 +10,30 @@ try {
     $env:CONFLUENCE_URL = "https://test.conf"
     $env:CONFLUENCE_PERSONAL_TOKEN = "test-conf-token"
     $env:CONTEXT7_API_KEY = "test-ctx-token"
+
+# Setup mock environment for gitnexus and context7 to ensure test succeeds in clean environment
+$mockBinDir = Join-Path $env:TEMP ("omp-mock-bin-" + [System.Guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Force -Path $mockBinDir | Out-Null
+Set-Content -Path (Join-Path $mockBinDir "gitnexus.cmd") -Value "@echo off`necho gitnexus"
+$oldPath = $env:Path
+$env:Path = "$mockBinDir;$env:Path"
+
+$mockNpmDir = Join-Path $env:TEMP ("omp-mock-npm-" + [System.Guid]::NewGuid().ToString("N"))
+$mockContext7Path = Join-Path $mockNpmDir "@upstash\context7-mcp\dist"
+New-Item -ItemType Directory -Force -Path $mockContext7Path | Out-Null
+Set-Content -Path (Join-Path $mockContext7Path "index.js") -Value "// mock"
+
+function global:npm {
+    param([Parameter(ValueFromRemainingArguments)]$remaining)
+    if ($remaining -contains "root" -and $remaining -contains "-g") {
+        return $mockNpmDir
+    }
+    $realNpm = Get-Command npm -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($realNpm) {
+        & $realNpm @remaining
+    }
+}
+
     Write-Host "Running bootstrap into temp dir: $tempDir"
     & "$PSScriptRoot\bootstrap.ps1" -DryRun:$false -SkipInstall -OmpDir $tempDir
     # Assert all 3 config files are generated
@@ -41,6 +65,12 @@ try {
     }
     if (-not $mcpJson.mcpServers.context7) {
         throw "ASSERTION FAILED: context7 missing in mcp.json"
+    }
+    if ($mcpJson.mcpServers.context7.command -ne "node") {
+        throw "ASSERTION FAILED: context7 command should be 'node'"
+    }
+    if ($mcpRaw -match '["\'']npx["\'']') {
+        throw "ASSERTION FAILED: mcp.json should not contain any npx fallback"
     }
     # Assert models.yml interpolated env var
     $modelsYml = Get-Content (Join-Path $tempDir "models.yml") -Raw
@@ -79,6 +109,11 @@ try {
     Write-Host "TEST PASSED: bootstrap created valid configs." -ForegroundColor Green
 }
 finally {
+    $env:Path = $oldPath
+    if ($mockBinDir -and (Test-Path $mockBinDir)) { Remove-Item -Recurse -Force $mockBinDir -ErrorAction SilentlyContinue }
+    if ($mockNpmDir -and (Test-Path $mockNpmDir)) { Remove-Item -Recurse -Force $mockNpmDir -ErrorAction SilentlyContinue }
+    Remove-Item function:global:npm -ErrorAction SilentlyContinue
+
     if (Test-Path $tempDir) {
         Remove-Item -Recurse -Force $tempDir
     }

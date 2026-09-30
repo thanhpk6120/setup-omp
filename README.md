@@ -6,15 +6,18 @@ Script bootstrap thiết lập môi trường và cấu hình `.omp` (`mcp.json`
 
 1. **memorix**: Tài liệu [AVIDS2/memorix](https://github.com/AVIDS2/memorix)
    - Lệnh: `memorix serve --mode lite`
+   - Yêu cầu Node.js >= 22.18.0.
    - Hook: `memorix setup --agent omp --global` đăng ký plugin `memorix-omp-package` (`extensions/memorix.js`): session_start, before_agent_start, session_before_compact, session_compact, session_shutdown
 2. **gitnexus**: Tài liệu [GitNexus Windows MCP](https://github.com/abhigyanpatwari/GitNexus)
-   - Bootstrap cài global (`npm i -g gitnexus`) rồi dùng đường dẫn tuyệt đối `cmd /c <abs-path>\gitnexus mcp` để tránh npx cold-cache vượt MCP timeout 30s; fallback `cmd /c npx -y gitnexus@latest mcp`
+   - Bootstrap cài global (`npm i -g gitnexus`) rồi dùng đường dẫn tuyệt đối `cmd /c <abs-path>\gitnexus mcp` để tối ưu thời gian khởi động.
+   - Yêu cầu Node.js >= 22.18.0. Quá trình bootstrap sẽ tự kiểm tra và báo lỗi nếu chưa đáp ứng hoặc cài lỗi thiếu file.
    - Index trống (`list_repos total=0`) thì chạy: `gitnexus analyze`
 3. **company-atlassian**: Tài liệu [mcp-atlassian Installation](https://mcp-atlassian.soomiles.com/docs/installation)
    - Lệnh: `uvx --from mcp-atlassian==0.23.1 mcp-atlassian` (pin version, bỏ cờ `--python 3.12` thừa)
    - Biến môi trường: `JIRA_URL`, `JIRA_PERSONAL_TOKEN`, `CONFLUENCE_URL`, `CONFLUENCE_PERSONAL_TOKEN`, `TOOLSETS`
 4. **context7**: Tài liệu [Upstash Context7 MCP](https://github.com/upstash/context7)
-   - Lệnh: `cmd /c npx -y @upstash/context7-mcp`
+   - Bootstrap cài global (`npm i -g @upstash/context7-mcp`), dùng lệnh `node <npm-root>/@upstash/context7-mcp/dist/index.js`
+   - Yêu cầu Node.js >= 22.18.0.
    - Biến môi trường (optional, tăng rate limit): `CONTEXT7_API_KEY` — không có thì chạy anonymous, bootstrap tự bỏ block `env`
 
 > Ghi chú: `mcp.json` không còn trường `$schema` vì URL schema cũ trả 404.

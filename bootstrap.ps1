@@ -15,6 +15,17 @@ foreach ($tool in @("node", "npm", "git")) {
     }
 }
 
+# MCP tools (context7, gitnexus, memorix) require Node >= 18.
+$nodeVerRaw = (node -v 2>$null | Out-String).Trim()
+try {
+    $nodeVer = [version]($nodeVerRaw.TrimStart('v'))
+} catch {
+    throw "Không thể xác định version của Node.js: '$nodeVerRaw'"
+}
+if ($nodeVer -lt [version]"22.18.0") {
+    throw "Yêu cầu Node.js >= 22.18.0 (do memorix yêu cầu >= 22.18.0, gitnexus yêu cầu ^22.18.0 || >= 24.11.0, context7 yêu cầu >= 20.18.1). Phiên bản hiện tại: '$nodeVerRaw'. Vui lòng nâng cấp Node.js."
+}
+
 # uv / uvx (required by company-atlassian MCP)
 if (-not $SkipInstall -and -not (Get-Command "uv" -ErrorAction SilentlyContinue)) {
     Write-Host "==> 'uv' not found. Installing uv..." -ForegroundColor Cyan
@@ -64,67 +75,47 @@ if (-not $SkipInstall) {
 }
 
 # gitnexus: vendor recommends a global install + absolute-path config to avoid npx
-# cold-cache stalls exceeding the 30s MCP timeout
 # (https://github.com/abhigyanpatwari/GitNexus README, "Fastest MCP startup").
-$gitnexusArgsJson = '"/c", "npx", "-y", "gitnexus@latest", "mcp"'
 if (-not $SkipInstall) {
     Write-Host "==> Installing gitnexus globally..." -ForegroundColor Cyan
     if (-not $DryRun) {
-        try {
-            npm install -g gitnexus --silent
-            $gitnexusBin = Get-Command "gitnexus" -ErrorAction SilentlyContinue
-            if ($gitnexusBin -and $gitnexusBin.Source) {
-                $absGitnexus = ($gitnexusBin.Source).Replace('\', '\\')
-                $gitnexusArgsJson = '"/c", "' + $absGitnexus + '", "mcp"'
-            }
-        } catch {
-            Write-Warning "gitnexus global install failed, falling back to npx: $($_.Exception.Message)"
-        }
+        npm install -g gitnexus --silent
     }
 }
 
-$context7Command = '"cmd"'
-$context7ArgsJson = '"/c", "npx", "-y", "@upstash/context7-mcp"'
+$gn = Get-Command "gitnexus" -ErrorAction SilentlyContinue
+if ($gn -and $gn.Source) {
+    $absGn = ($gn.Source).Replace('\', '\\')
+    $gitnexusArgsJson = '"/c", "' + $absGn + '", "mcp"'
+} else {
+    throw "Lỗi: Không tìm thấy gitnexus bằng Get-Command. Dừng cài đặt."
+}
+
+$context7Command = '"node"'
 if (-not $SkipInstall) {
     Write-Host "==> Installing context7 globally..." -ForegroundColor Cyan
     if (-not $DryRun) {
-        try {
-            npm install -g @upstash/context7-mcp --silent
-            $npmGlobalRoot = (cmd /c npm root -g) | Out-String
-            $npmGlobalRoot = $npmGlobalRoot.Trim()
-            $ctxJsPath = Join-Path $npmGlobalRoot "@upstash\context7-mcp\dist\index.js"
-            if (Test-Path $ctxJsPath) {
-                $absCtxJs = ($ctxJsPath).Replace('\', '\\')
-                $context7Command = '"node"'
-                $context7ArgsJson = '"' + $absCtxJs + '"'
-            }
-        } catch {
-            Write-Warning "context7 global install failed, falling back to npx: $($_.Exception.Message)"
-        }
+        npm install -g @upstash/context7-mcp --silent
     }
 }
 
-# Dynamic path resolution (runs even with -SkipInstall): prefer local absolute paths, fallback to npx
+$npmRoot2 = ""
 try {
-    $gn = Get-Command "gitnexus" -ErrorAction SilentlyContinue
-    if ($gn -and $gn.Source) {
-        $absGn = ($gn.Source).Replace('\', '\\')
-        $gitnexusArgsJson = '"/c", "' + $absGn + '", "mcp"'
-    }
-} catch {}
-try {
-    $npmRoot2 = (cmd /c npm root -g 2>$null) | Out-String
+    $npmRoot2 = (npm root -g 2>$null) | Out-String
     $npmRoot2 = $npmRoot2.Trim()
-    if ($npmRoot2) {
-        $ctxP2 = Join-Path $npmRoot2 "@upstash\\context7-mcp\\dist\\index.js"
-        if (Test-Path $ctxP2) {
-            $absCtx2 = ($ctxP2).Replace('\', '\\')
-            $context7Command = '"node"'
-            $context7ArgsJson = '"' + $absCtx2 + '"'
-        }
-    }
 } catch {}
 
+if ($npmRoot2) {
+    $ctxP2 = Join-Path $npmRoot2 "@upstash\context7-mcp\dist\index.js"
+    if (Test-Path $ctxP2) {
+        $absCtx2 = ($ctxP2).Replace('\', '\\')
+        $context7ArgsJson = '"' + $absCtx2 + '"'
+    } else {
+        throw "Lỗi: Không tìm thấy file dist\index.js của context7. Dừng cài đặt."
+    }
+} else {
+    throw "Lỗi: Không tìm thấy thư mục npm root -g để lấy đường dẫn context7. Dừng cài đặt."
+}
 Write-Host "==> Ensuring directory $OmpDir exists..." -ForegroundColor Cyan
 if (-not $DryRun) {
     New-Item -ItemType Directory -Force -Path $OmpDir | Out-Null
