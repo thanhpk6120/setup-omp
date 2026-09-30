@@ -3,7 +3,13 @@ $ErrorActionPreference = "Stop"
 
 $tempDir = Join-Path $env:TEMP ("omp-test-" + [System.Guid]::NewGuid().ToString("N"))
 try {
+    $env:ROUTER_BASE_URL = "https://test.local"
     $env:ROUTER_API_KEY = "test-key-abc"
+    $env:JIRA_URL = "https://test.jira"
+    $env:JIRA_PERSONAL_TOKEN = "test-jira-token"
+    $env:CONFLUENCE_URL = "https://test.conf"
+    $env:CONFLUENCE_PERSONAL_TOKEN = "test-conf-token"
+    $env:CONTEXT7_API_KEY = "test-ctx-token"
     Write-Host "Running bootstrap into temp dir: $tempDir"
     & "$PSScriptRoot\bootstrap.ps1" -DryRun:$false -SkipInstall -OmpDir $tempDir
     # Assert all 3 config files are generated

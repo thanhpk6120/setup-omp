@@ -129,9 +129,9 @@ $mcpTemplate = @'
       "command": "uvx",
       "args": ["--from", "mcp-atlassian==0.23.1", "mcp-atlassian"],
       "env": {
-        "JIRA_URL": "https://jira.cybertech.vn",
+        "JIRA_URL": "__JIRA_URL__",
         "JIRA_PERSONAL_TOKEN": "__JIRA_PERSONAL_TOKEN__",
-        "CONFLUENCE_URL": "https://conf.cybertech.vn",
+        "CONFLUENCE_URL": "__CONFLUENCE_URL__",
         "CONFLUENCE_PERSONAL_TOKEN": "__CONFLUENCE_PERSONAL_TOKEN__",
         "TOOLSETS": "jira,confluence"
       }
@@ -154,7 +154,7 @@ $mcpTemplate = @'
 $modelsTemplate = @'
 providers:
   9router:
-    baseUrl: https://9router.thanhpk.io.vn/v1
+    baseUrl: __ROUTER_BASE_URL__
     api: openai-completions
     apiKey: __ROUTER_API_KEY__
     compat:
@@ -252,13 +252,25 @@ dev:
 '@
 
 Write-Host "==> Preparing configuration files..." -ForegroundColor Cyan
-$routerKey = if ($env:ROUTER_API_KEY) { $env:ROUTER_API_KEY } else { "YOUR_ROUTER_API_KEY" }
-$jiraToken = if ($env:JIRA_PERSONAL_TOKEN) { $env:JIRA_PERSONAL_TOKEN } else { "YOUR_JIRA_PERSONAL_TOKEN" }
-$confToken = if ($env:CONFLUENCE_PERSONAL_TOKEN) { $env:CONFLUENCE_PERSONAL_TOKEN } else { "YOUR_CONFLUENCE_PERSONAL_TOKEN" }
-$ctxKey = if ($env:CONTEXT7_API_KEY) { $env:CONTEXT7_API_KEY } else { "" }
+function Get-ConfigValue {
+    param([string]$EnvName, [string]$Prompt, [string]$Default)
+    $val = [Environment]::GetEnvironmentVariable($EnvName)
+    if (-not [string]::IsNullOrWhiteSpace($val)) { return $val }
+    $inputVal = Read-Host "$Prompt (Default: $Default)"
+    if ([string]::IsNullOrWhiteSpace($inputVal)) { return $Default }
+    return $inputVal.Trim()
+}
+
+$routerUrl = Get-ConfigValue "ROUTER_BASE_URL" "Provider Base URL" "https://9router.thanhpk.io.vn/v1"
+$routerKey = Get-ConfigValue "ROUTER_API_KEY" "Provider API Key" "YOUR_ROUTER_API_KEY"
+$jiraUrl   = Get-ConfigValue "JIRA_URL" "Jira URL" "https://jira.cybertech.vn"
+$jiraToken = Get-ConfigValue "JIRA_PERSONAL_TOKEN" "Jira Personal Token" "YOUR_JIRA_PERSONAL_TOKEN"
+$confUrl   = Get-ConfigValue "CONFLUENCE_URL" "Confluence URL" "https://conf.cybertech.vn"
+$confToken = Get-ConfigValue "CONFLUENCE_PERSONAL_TOKEN" "Confluence Personal Token" "YOUR_CONFLUENCE_PERSONAL_TOKEN"
+$ctxKey    = Get-ConfigValue "CONTEXT7_API_KEY" "Context7 API Key" ""
 $escapedCloakBrowser = $CloakBrowserPath -replace '\\', '\\'
 
-$mcpJson = $mcpTemplate.Replace("__JIRA_PERSONAL_TOKEN__", $jiraToken).Replace("__CONFLUENCE_PERSONAL_TOKEN__", $confToken).Replace("__CLOAKBROWSER_PATH__", $escapedCloakBrowser).Replace("__GITNEXUS_ARGS__", $gitnexusArgsJson).Replace("__CONTEXT7_CMD__", $context7Command).Replace("__CONTEXT7_ARGS__", $context7ArgsJson)
+$mcpJson = $mcpTemplate.Replace("__JIRA_URL__", $jiraUrl).Replace("__JIRA_PERSONAL_TOKEN__", $jiraToken).Replace("__CONFLUENCE_URL__", $confUrl).Replace("__CONFLUENCE_PERSONAL_TOKEN__", $confToken).Replace("__CLOAKBROWSER_PATH__", $escapedCloakBrowser).Replace("__GITNEXUS_ARGS__", $gitnexusArgsJson).Replace("__CONTEXT7_CMD__", $context7Command).Replace("__CONTEXT7_ARGS__", $context7ArgsJson)
 if ($ctxKey) {
     $mcpJson = $mcpJson.Replace("__CONTEXT7_API_KEY__", $ctxKey)
 } else {
@@ -272,7 +284,7 @@ if (-not (Test-Path $CloakBrowserPath)) {
 
 $files = @{
     "mcp.json"   = $mcpJson
-    "models.yml" = $modelsTemplate.Replace("__ROUTER_API_KEY__", $routerKey)
+    "models.yml" = $modelsTemplate.Replace("__ROUTER_BASE_URL__", $routerUrl).Replace("__ROUTER_API_KEY__", $routerKey)
     "config.yml" = $configTemplate
 }
 foreach ($entry in $files.GetEnumerator()) {
