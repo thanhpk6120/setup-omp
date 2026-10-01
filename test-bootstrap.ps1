@@ -57,11 +57,11 @@ function global:npm {
     if ($mcpJson.mcpServers.gitnexus.command -ne "cmd") {
         throw "ASSERTION FAILED: gitnexus command should be 'cmd', found: $($mcpJson.mcpServers.gitnexus.command)"
     }
-    if ($mcpJson.mcpServers.'company-atlassian'.command -ne "uvx") {
-        throw "ASSERTION FAILED: company-atlassian command should be 'uvx'"
+    if ($mcpJson.mcpServers.'company-atlassian'.command -ne "mcp-atlassian") {
+        throw "ASSERTION FAILED: company-atlassian command should be 'mcp-atlassian'"
     }
-    if ($mcpJson.mcpServers.'company-atlassian'.args[0] -ne "--from" -or $mcpJson.mcpServers.'company-atlassian'.args[1] -notlike "mcp-atlassian==*") {
-        throw "ASSERTION FAILED: company-atlassian should pin version via --from mcp-atlassian==..."
+    if ($mcpJson.mcpServers.'company-atlassian'.args -contains "--from") {
+        throw "ASSERTION FAILED: company-atlassian should not use --from"
     }
     if (-not $mcpJson.mcpServers.context7) {
         throw "ASSERTION FAILED: context7 missing in mcp.json"

@@ -138,8 +138,8 @@ $mcpTemplate = @'
       "args": [__GITNEXUS_ARGS__]
     },
     "company-atlassian": {
-      "command": "uvx",
-      "args": ["--from", "mcp-atlassian==0.23.1", "mcp-atlassian"],
+      "command": "mcp-atlassian",
+      "args": [],
       "env": {
         "JIRA_URL": "__JIRA_URL__",
         "JIRA_PERSONAL_TOKEN": "__JIRA_PERSONAL_TOKEN__",
