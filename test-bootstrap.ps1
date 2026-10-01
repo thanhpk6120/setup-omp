@@ -72,6 +72,12 @@ function global:npm {
     if ($mcpRaw -match '["\'']npx["\'']') {
         throw "ASSERTION FAILED: mcp.json should not contain any npx fallback"
     }
+    if (-not $mcpJson.mcpServers.cloakbrowser) {
+        throw "ASSERTION FAILED: cloakbrowser missing in mcp.json"
+    }
+    if ($mcpJson.mcpServers.cloakbrowser.command -ne "node") {
+        throw "ASSERTION FAILED: cloakbrowser command should be 'node'"
+    }
     # Assert models.yml interpolated env var
     $modelsYml = Get-Content (Join-Path $tempDir "models.yml") -Raw
     if (-not $modelsYml.Contains("apiKey: test-key-abc")) {
