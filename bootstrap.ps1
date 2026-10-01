@@ -145,7 +145,7 @@ $mcpTemplate = @'
         "JIRA_PERSONAL_TOKEN": "__JIRA_PERSONAL_TOKEN__",
         "CONFLUENCE_URL": "__CONFLUENCE_URL__",
         "CONFLUENCE_PERSONAL_TOKEN": "__CONFLUENCE_PERSONAL_TOKEN__",
-        "TOOLSETS": "jira,confluence"
+        "TOOLSETS": "default"
       }
     },
     "context7": {
@@ -364,13 +364,9 @@ foreach ($mdFile in @("AGENTS.md", "RULES.md", "SYSTEM.md")) {
 $srcSkills = Join-Path $PSScriptRoot "skills"
 $targetSkills = Join-Path $OmpDir "skills"
 if (Test-Path $srcSkills) {
-    if (Test-Path $targetSkills) {
-        Write-Host "  -> Skipping $targetSkills (already exists)" -ForegroundColor Yellow
-    } else {
-        Write-Host "  -> Copying skills/ to $targetSkills" -ForegroundColor Green
-        if (-not $DryRun) {
-            Copy-Item -Path $srcSkills -Destination $targetSkills -Recurse
-        }
+    Write-Host "  -> Copying skills/ to $targetSkills (overwrite)" -ForegroundColor Green
+    if (-not $DryRun) {
+        Copy-Item -Path $srcSkills -Destination $targetSkills -Recurse -Force
     }
 }
 
