@@ -191,7 +191,26 @@ Never silently "fix" the plan by writing different code from what was approved.
 
 > **Test and validator output pasted into `report.md` must be the real output of a command that actually ran.** Narrating "tests pass" is a rejected output. If a check could not be run, write `N/A` with a verifiable reason.
 
-### Step 9 — Write `report.md`
+### Step 9 — MANDATORY EVIDENCE LOOP
+
+Mỗi task sau khi hoàn thành code **BẮT BUỘC** phải trải qua vòng lặp xác thực bằng chứng (Evidence Loop) trước khi được đánh dấu là xong và cập nhật vào `report.md`.
+
+1. **Sinh bằng chứng (Generate Evidence):**
+   - Chụp ảnh màn hình (screenshot) HOẶC xuất file output định dạng `.json`, `.txt`, `.md` chứa kết quả chạy thật của lệnh/test.
+   - Vị trí lưu: `docs/features/<TICKET-ID>/evidence/`
+   - Quy ước tên file: `<task-id>_<slug>.<ext>` (ví dụ: `TASK-1_test_result.txt`, `TASK-2_ui_preview.png`).
+   - Nội dung tối thiểu (đối với file text): phải chứa `task_id`, `command_run` (lệnh đã chạy), `exit_code` (mã lỗi trả về), `status` (thành công/thất bại), `assertions_summary` (kết quả kiểm tra), và `timestamp` (thời gian chạy).
+
+2. **Tự xác thực (Self-Verify):**
+   - Đối chiếu nội dung/ảnh bằng chứng với Acceptance Criteria của task (trong `tasks.md`) và yêu cầu tại `expect.md`.
+   - Nếu chưa đạt (bằng chứng không khớp hoặc test fail): **Sửa code → Cập nhật lại bằng chứng → Tự xác thực lại.**
+   - Lặp lại quy trình này cho đến khi toàn bộ tiêu chí đều đạt.
+
+3. **Đính kèm vào Report:**
+   - Chỉ khi vòng lặp hoàn tất và bằng chứng hợp lệ, task mới được đánh dấu `done` trong `tasks.md`.
+   - Đường dẫn file evidence và trạng thái verify phải được đính kèm vào `report.md` (xem định dạng ở Step 10).
+
+### Step 10 — Write `report.md`
 
 ````markdown
 ---
@@ -213,16 +232,16 @@ updated_at: <YYYY-MM-DD>
 |---|---|---|
 | `<service-key>` | `<repo-relative path>` | <one line> |
 
-## 3. Verification results
+## 3. Verification & Evidence
 <!-- Paste the REAL output of each command. No narration. -->
 ```
 $ <command from {{VERIFY_COMMANDS}}>
 <real output>
 ```
-| Check | Result | Note |
+| Check | Result | Evidence File / Note |
 |---|---|---|
 | `<lint command>` | ✅ / ❌ / N/A | |
-| `<test command>` | ✅ / ❌ / N/A | tests run: X, failures: 0, errors: 0, skipped: Y |
+| `<test command>` | ✅ / ❌ / N/A | `evidence/TASK-1_test.txt` |
 | `<build command>` | ✅ / ❌ / N/A | |
 | i18n — no hardcoded text, locales complete | ✅ / ❌ / N/A | <required when {{I18N_REQUIRED}} = true> |
 | Impact/change detection | ✅ / ❌ / N/A | |
@@ -253,11 +272,11 @@ $ <command from {{VERIFY_COMMANDS}}>
 |---|---|---|---|
 ````
 
-### Step 10 — Finalize `impact.md`
+### Step 11 — Finalize `impact.md`
 
 If the project uses `impact.md`, update it so it reflects reality after implementation: the files and services actually changed, the areas **confirmed** unaffected, the risks that materialized, and anything left unverified. Follow the impact rule in `{{EXTRA_RULES}}`.
 
-### Step 11 — Write `deploy.md` when triggered
+### Step 12 — Write `deploy.md` when triggered
 
 Create `deploy.md` **only** when a trigger in `{{DEPLOY_TRIGGERS}}` fires. Default triggers: schema/migration, config or environment variables, new dependency, new or changed job/cron/queue, message contract change, auth realm/role/permission change, storage bucket/path/policy change, infrastructure or rollout change.
 
@@ -303,7 +322,7 @@ Create `deploy.md` **only** when a trigger in `{{DEPLOY_TRIGGERS}}` fires. Defau
 
 > `deploy.md` describes **this feature's** rollout. Environment-level operating detail belongs in the service-local deployment doc named by `{{DOCS_UPDATE_MAP}}`, not in the shared docs repo.
 
-### Step 12 — Propose the docs diff (Gate 2)
+### Step 13 — Propose the docs diff (Gate 2)
 
 Map each change to its document using `{{DOCS_UPDATE_MAP}}`. The default mapping:
 
@@ -323,17 +342,17 @@ Rules:
 - If no spec update is needed, `report.md` must state `Docs/specs: N/A` with a verifiable reason.
 - A feature must not be marked `done` while the docs/specs status is missing.
 
-### Step 13 — Close out
+### Step 14 — Close out
 
 Per-task close-out:
 - [ ] The task's DoD in `tasks.md` is objectively met.
-- [ ] Its verification command was run and the real output is in `report.md`.
+- [ ] Its verification command was run and the real output is in `report.md` (via MANDATORY EVIDENCE LOOP).
 - [ ] `tasks.md` status updated, with the date.
 - [ ] Commit/PR reference recorded if `{{COMMIT_RULE}}` requires it.
 
 Feature close-out (Definition of Done):
 - [ ] Every task in `tasks.md` is `done` — none left in progress or blocked.
-- [ ] `report.md` contains real verification output for every affected service.
+- [ ] `report.md` contains real verification output for every affected service, linking to valid evidence files.
 - [ ] `impact.md` finalized, if the project uses it.
 - [ ] `deploy.md` exists if any `{{DEPLOY_TRIGGERS}}` fired.
 - [ ] `{{DB_DOCS_PATH}}` updated, or the reason for waiting on the DBA is recorded.
@@ -368,7 +387,7 @@ The work is sent back if any of these is present:
 
 | Anti-pattern | Why it fails |
 |---|---|
-| `report.md` claims "tests pass" with no pasted output | Unverifiable; the report is the evidence |
+| `report.md` claims "tests pass" with no pasted output or missing evidence | Unverifiable; the report is the evidence |
 | Code written before Gate 1 approval | The gate exists to prevent exactly this |
 | The service was found by grep instead of the registry | Wrong repo edited; registry exists to prevent it |
 | The diff contains unrelated refactoring | Reviewer cannot separate the feature from the noise |

@@ -12,13 +12,7 @@
 
 ### Mandatory Tool & Skill Resolution:
 - **Skills (`skills/*/SKILL.md`):** E.g. `create-plan`, `implement-task`, `init-docs`, `delivery`, `security-review`. If a task matches a skill's intent, MUST use it instead of ad-hoc steps.
-- **Plugins / MCP Tools:** 
-  - **GitNexus**: Code graphs, symbol context, impact analysis, blast radius.
-  - **Memorix**: Memory briefs, durable facts, decision records.
-  - **CloakBrowser**: Web scraping, browser automation.
-  - **Jira / Confluence**: Atlassian ticket/docs interaction.
-  - **Context7**: External library docs.
-  *NEVER use generic `bash`/`grep` if a dedicated Plugin/MCP handles the domain.*
+- **Plugins / MCP Tools:** Luôn kiểm tra danh sách MCP tools đang có trong môi trường để ưu tiên sử dụng đúng công cụ cho domain (ví dụ: công cụ cho code graph/symbol, project memory, browser automation, issue tracking, docs, tra cứu thư viện...). *NEVER use generic `bash`/`grep`/`curl` if a dedicated Plugin/MCP handles the domain.*
 
 Before executing actions or calling tool sequences, classify the incoming task and strictly follow the delegation rules:
 
@@ -112,6 +106,11 @@ Allowed only when requested or for approved parallel chunks. Use the exact task/
 ---
 
 ## Tools
+
+### MCP Routing & Strict Enforcement (Hard Constraints)
+- **Strict OUTPUT PREFIX Verification:** You MUST NEVER issue a tool call without first outputting the `[Pre-flight]` prefix.
+- **MCP Route & Priority (Hard Constraints):** BẮT BUỘC ưu tiên dùng các MCP tools chuyên dụng tương ứng với domain của task (ví dụ: dùng MCP tool về code graph thay vì `grep`, dùng MCP tool về browser thay vì `curl`/`wget`, dùng MCP tool về database/memory thay vì tra cứu file thủ công). **CẤM** lạm dụng `bash` (grep, find, awk, curl) hoặc native tools khi trong danh sách công cụ đã có MCP tool phục vụ chức năng đó.
+- **Fallback Rule:** Chỉ dùng bash/native tools thay thế khi MCP báo lỗi không khả dụng hoặc user bắt buộc. Lạm dụng bash/grep thay cho MCP là vi phạm nghiêm trọng.
 
 - Use local search/read/terminal and external docs for third-party integrations as needed.
 - Don't assume optional tools/services exist; fall back gracefully and report limitations.
