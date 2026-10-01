@@ -53,6 +53,21 @@ if (-not $SkipInstall -and -not (Get-Command "uv" -ErrorAction SilentlyContinue)
         }
     }
 }
+if (-not $SkipInstall) {
+    Write-Host "==> Installing/updating mcp-atlassian globally via uv tool..." -ForegroundColor Cyan
+    if (-not $DryRun) {
+        if (Get-Command "uv" -ErrorAction SilentlyContinue) {
+            try {
+                uv tool install mcp-atlassian==0.23.1 --upgrade
+            } catch {
+                Write-Warning "Failed to install mcp-atlassian via uv: $($_.Exception.Message)"
+            }
+        } else {
+            Write-Warning "'uv' is not available. Please install 'mcp-atlassian' manually: uv tool install mcp-atlassian==0.23.1"
+        }
+    }
+}
+
 
 if (-not $SkipInstall -and -not (Get-Command "memorix" -ErrorAction SilentlyContinue)) {
     Write-Host "==> Installing memorix globally..." -ForegroundColor Cyan
@@ -350,17 +365,12 @@ foreach ($mdFile in @("AGENTS.md", "RULES.md", "SYSTEM.md")) {
     $srcPath = Join-Path $PSScriptRoot $mdFile
     $targetPath = Join-Path $OmpDir $mdFile
     if (Test-Path $srcPath) {
-        if (Test-Path $targetPath) {
-            Write-Host "  -> Skipping $targetPath (already exists)" -ForegroundColor Yellow
-        } else {
-            Write-Host "  -> Copying $mdFile to $targetPath" -ForegroundColor Green
-            if (-not $DryRun) {
-                Copy-Item -Path $srcPath -Destination $targetPath
-            }
+        Write-Host "  -> Copying $mdFile to $targetPath (overwrite)" -ForegroundColor Green
+        if (-not $DryRun) {
+            Copy-Item -Path $srcPath -Destination $targetPath -Force
         }
     }
 }
-
 $srcSkills = Join-Path $PSScriptRoot "skills"
 $targetSkills = Join-Path $OmpDir "skills"
 if (Test-Path $srcSkills) {
