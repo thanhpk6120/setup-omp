@@ -164,8 +164,8 @@ $mcpTemplate = @'
 {
   "mcpServers": {
     "memorix": {
-      "command": "memorix",
-      "args": ["serve", "--mode", "lite"]
+      "command": "npx",
+      "args": ["-y", "memorix@latest", "serve", "--mode", "lite"]
     },
     "gitnexus": {
       "command": "cmd",

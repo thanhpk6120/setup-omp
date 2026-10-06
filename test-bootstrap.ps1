@@ -69,8 +69,8 @@ function global:npm {
     if ($mcpJson.mcpServers.context7.command -ne "node") {
         throw "ASSERTION FAILED: context7 command should be 'node'"
     }
-    if ($mcpRaw -match '["\'']npx["\'']') {
-        throw "ASSERTION FAILED: mcp.json should not contain any npx fallback"
+    if ($mcpJson.mcpServers.gitnexus.command -eq "npx" -or $mcpJson.mcpServers.context7.command -eq "npx") {
+        throw "ASSERTION FAILED: gitnexus and context7 should not use npx"
     }
     if (-not $mcpJson.mcpServers.cloakbrowser) {
         throw "ASSERTION FAILED: cloakbrowser missing in mcp.json"
