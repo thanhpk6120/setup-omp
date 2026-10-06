@@ -170,6 +170,13 @@ $mcpTemplate = @'
         "CONTEXT7_API_KEY": "__CONTEXT7_API_KEY__"
       }
     },
+    "glab": {
+      "command": "glab",
+      "args": [
+        "mcp",
+        "serve"
+      ]
+    },
     "cloakbrowser": {
       "command": "node",
       "args": [
