@@ -114,6 +114,25 @@ if (-not $SkipInstall) {
     }
 }
 
+if (-not $SkipInstall -and -not (Get-Command "glab" -ErrorAction SilentlyContinue)) {
+    Write-Host "==> Installing glab (GitLab CLI) globally..." -ForegroundColor Cyan
+    if (-not $DryRun) {
+        if (Get-Command "winget" -ErrorAction SilentlyContinue) {
+            try {
+                winget install -e --id GLab.GLab --silent --accept-source-agreements --accept-package-agreements | Out-Null
+                $glabProg = "$env:LOCALAPPDATA\Programs\glab"
+                if (Test-Path $glabProg) {
+                    $env:Path = "$glabProg;$env:Path"
+                }
+            } catch {
+                Write-Warning "Failed to install glab via winget: $($_.Exception.Message)"
+            }
+        } else {
+            Write-Warning "'winget' is not available. Please install glab manually."
+        }
+    }
+}
+
 $npmRoot2 = ""
 try {
     $npmRoot2 = (npm root -g 2>$null) | Out-String
@@ -424,6 +443,22 @@ $jiraToken = Get-EnvOrPrompt -EnvName "JIRA_PERSONAL_TOKEN" -Prompt "Jira Person
 $confUrl   = Get-EnvOrPrompt -EnvName "CONFLUENCE_URL" -Prompt "Confluence URL" -Default "https://conf.cybertech.vn"
 $confToken = Get-EnvOrPrompt -EnvName "CONFLUENCE_PERSONAL_TOKEN" -Prompt "Confluence Personal Token" -Default "YOUR_CONFLUENCE_PERSONAL_TOKEN"
 $ctxKey    = Get-EnvOrPrompt -EnvName "CONTEXT7_API_KEY" -Prompt "Context7 API Key" -AllowEmpty
+$gitlabHost = Get-EnvOrPrompt -EnvName "GITLAB_HOST" -Prompt "GitLab Host" -Default "10.30.1.17"
+$gitlabToken = Get-EnvOrPrompt -EnvName "GITLAB_TOKEN" -Prompt "GitLab Personal Token" -AllowEmpty
+
+if (-not [string]::IsNullOrWhiteSpace($gitlabToken) -and -not $DryRun) {
+    Write-Host "==> Configuring GitLab authentication for host '$gitlabHost'..." -ForegroundColor Cyan
+    $proto = if ($gitlabHost -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -or $gitlabHost -match ':80') { "http" } else { "https" }
+    $glabCmd = if (Get-Command "glab" -ErrorAction SilentlyContinue) { "glab" } elseif (Test-Path "$env:LOCALAPPDATA\Programs\glab\glab.exe") { "$env:LOCALAPPDATA\Programs\glab\glab.exe" } else { "glab" }
+    try {
+        & $glabCmd config set api_protocol $proto -g --host $gitlabHost 2>$null
+        $tokenSec = $gitlabToken.Trim()
+        & $glabCmd auth login --hostname $gitlabHost --token $tokenSec 2>$null
+        Write-Host "  -> Logged in to GitLab ($gitlabHost) successfully." -ForegroundColor Green
+    } catch {
+        Write-Warning "Could not configure glab auth automatically: $($_.Exception.Message)"
+    }
+}
 
 $cbSourceDir = Join-Path $PSScriptRoot "mcp-servers\cloakbrowser"
 $cbTargetDir = Get-CloakBrowserInstallDir
