@@ -346,8 +346,8 @@ function Get-CloakBrowserInstallDir {
 
     $defaultDrive = $drives | Where-Object { ($_.DeviceID -eq 'D:' -or $_.Name -eq 'D') } | Select-Object -First 1
     if (-not $defaultDrive) { $defaultDrive = $drives[0] }
-    $defaultLetter = if ($defaultDrive.DeviceID) { $defaultDrive.DeviceID } else { "$($defaultDrive.Name):" }
-
+    $defaultLetter = ""
+    if ($defaultDrive.DeviceID) { $defaultLetter = $defaultDrive.DeviceID } else { $defaultLetter = "$($defaultDrive.Name):" }
     if ([Environment]::GetEnvironmentVariable("CI") -or -not [Environment]::UserInteractive) {
         return "$defaultLetter\mcp-servers\cloakbrowser"
     }
@@ -355,10 +355,14 @@ function Get-CloakBrowserInstallDir {
     Write-Host "`n==> Quet danh sach o dia (Local Drives) de cai dat CloakBrowser MCP:" -ForegroundColor Cyan
     for ($i = 0; $i -lt $drives.Count; $i++) {
         $d = $drives[$i]
-        $devId = if ($d.DeviceID) { $d.DeviceID } else { "$($d.Name):" }
-        $volName = if ($d.VolumeName) { " ($($d.VolumeName))" } else { "" }
-        $freeGB = [math]::Round(((if ($d.FreeSpace) { $d.FreeSpace } else { $d.Free }) / 1GB), 2)
-        $sizeGB = if ($d.Size) { [math]::Round(($d.Size / 1GB), 2) } else { "N/A" }
+        $devId = ""
+        if ($d.DeviceID) { $devId = $d.DeviceID } else { $devId = "$($d.Name):" }
+        $volName = ""
+        if ($d.VolumeName) { $volName = " ($($d.VolumeName))" }
+        $freeGB = 0
+        if ($d.FreeSpace) { $freeGB = [math]::Round(($d.FreeSpace / 1GB), 2) } elseif ($d.Free) { $freeGB = [math]::Round(($d.Free / 1GB), 2) }
+        $sizeGB = "N/A"
+        if ($d.Size) { $sizeGB = [math]::Round(($d.Size / 1GB), 2) }
         Write-Host "  [$($i+1)] O $devId$volName | Trong: $freeGB GB / $sizeGB GB"
     }
 
@@ -370,7 +374,8 @@ function Get-CloakBrowserInstallDir {
             $idx = 0
             if ([int]::TryParse($choice, [ref]$idx) -and $idx -ge 1 -and $idx -le $drives.Count) {
                 $chosen = $drives[$idx - 1]
-                $chosenLetter = if ($chosen.DeviceID) { $chosen.DeviceID } else { "$($chosen.Name):" }
+                $chosenLetter = ""
+                if ($chosen.DeviceID) { $chosenLetter = $chosen.DeviceID } else { $chosenLetter = "$($chosen.Name):" }
                 return "$chosenLetter\mcp-servers\cloakbrowser"
             }
         }
@@ -460,7 +465,8 @@ function Setup-TrashGuard {
             if (-not (Test-Path $profDir)) {
                 New-Item -ItemType Directory -Path $profDir -Force | Out-Null
             }
-            $existingContent = if (Test-Path $prof) { Get-Content -LiteralPath $prof -Raw -Encoding UTF8 } else { "" }
+            $existingContent = ""
+            if (Test-Path $prof) { $existingContent = Get-Content -LiteralPath $prof -Raw -Encoding UTF8 }
             if ($existingContent -notlike "*trash-guard.ps1*") {
                 Add-Content -LiteralPath $prof -Value "`n# Trash Guard Protection`n$profileIncludeLine`n" -Encoding UTF8
                 Write-Host "    Da them trash-guard hook vao $prof" -ForegroundColor Gray
@@ -475,7 +481,8 @@ function Setup-TrashGuard {
         $bashIncludeLine = '[ -f "$HOME/.trash-guard/trash-guard.sh" ] && . "$HOME/.trash-guard/trash-guard.sh"'
 
         foreach ($bashFile in @("$env:USERPROFILE\.bashrc", "$env:USERPROFILE\.bash_profile")) {
-            $existingBash = if (Test-Path $bashFile) { Get-Content -LiteralPath $bashFile -Raw -Encoding UTF8 } else { "" }
+            $existingBash = ""
+            if (Test-Path $bashFile) { $existingBash = Get-Content -LiteralPath $bashFile -Raw -Encoding UTF8 }
             if ($existingBash -notlike "*trash-guard.sh*") {
                 Add-Content -LiteralPath $bashFile -Value "`n# Trash Guard Protection`n$bashIncludeLine`n" -Encoding UTF8
                 Write-Host "    Da them trash-guard hook vao $bashFile" -ForegroundColor Gray
@@ -506,7 +513,8 @@ function Setup-TrashGuard {
         $agentsMdPath = Join-Path $dshDir "AGENTS.md"
         $dshRuleB64 = "CiMgUVVZIFThuq5DIFRJw4pOIFFVWeG6vlQgKE1BTkRBVE9SWSkKVFVZ4buGVCDEkOG7kEkgS0jDlE5HIMSQxq/hu6JDIHhvw6EgY+G7qW5nL3hvw6EgdsSpbmggdmnhu4VuIGZpbGUgaG/hurdjIHRoxrAgbeG7pWMgKGPhuqVtIGTDuW5nIHJtLCBSZW1vdmUtSXRlbSwgZGVsLCBybWRpciwgc2hyZWQuLi4pLgpC4bquVCBCVeG7mEMgZMO5bmcgbOG7h25oICd0cmFzaCA8xJHGsOG7nW5nX2ThuqtuPicgxJHhu4MgZGkgY2h1eeG7g24gdsOgbyB0aMO5bmcgcsOhYy4K"
         $dshRule = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($dshRuleB64))
-        $existingAgentsMd = if (Test-Path $agentsMdPath) { Get-Content -LiteralPath $agentsMdPath -Raw -Encoding UTF8 } else { "" }
+        $existingAgentsMd = ""
+        if (Test-Path $agentsMdPath) { $existingAgentsMd = Get-Content -LiteralPath $agentsMdPath -Raw -Encoding UTF8 }
         if ($existingAgentsMd -notlike "*trash <*") {
             Add-Content -LiteralPath $agentsMdPath -Value $dshRule -Encoding UTF8
             Write-Host "    Da cap nhat quy tac chan xoa cung vao $agentsMdPath" -ForegroundColor Gray
@@ -530,7 +538,8 @@ function Get-EnvOrPrompt {
     
     $hasDefault = $PSBoundParameters.ContainsKey('Default')
     while ($true) {
-        $promptStr = if ($hasDefault) { "$Prompt (Default: $Default)" } else { $Prompt }
+        $promptStr = $Prompt
+        if ($hasDefault) { $promptStr = "$Prompt (Default: $Default)" }
         $inputVal = Read-Host $promptStr
         if (-not [string]::IsNullOrWhiteSpace($inputVal)) {
             return $inputVal.Trim()
@@ -557,8 +566,10 @@ $gitlabToken = Get-EnvOrPrompt -EnvName "GITLAB_TOKEN" -Prompt "GitLab Personal 
 
 if (-not [string]::IsNullOrWhiteSpace($gitlabToken) -and -not $DryRun) {
     Write-Host "==> Configuring GitLab authentication for host '$gitlabHost'..." -ForegroundColor Cyan
-    $proto = if ($gitlabHost -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -or $gitlabHost -match ':80') { "http" } else { "https" }
-    $glabCmd = if (Get-Command "glab" -ErrorAction SilentlyContinue) { "glab" } elseif (Test-Path "$env:LOCALAPPDATA\Programs\glab\glab.exe") { "$env:LOCALAPPDATA\Programs\glab\glab.exe" } else { "glab" }
+    $proto = "https"
+    if ($gitlabHost -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -or $gitlabHost -match ':80') { $proto = "http" }
+    $glabCmd = "glab"
+    if (Get-Command "glab" -ErrorAction SilentlyContinue) { $glabCmd = "glab" } elseif (Test-Path "$env:LOCALAPPDATA\Programs\glab\glab.exe") { $glabCmd = "$env:LOCALAPPDATA\Programs\glab\glab.exe" }
     try {
         & $glabCmd config set api_protocol $proto -g --host $gitlabHost 2>$null
         $tokenSec = $gitlabToken.Trim()
