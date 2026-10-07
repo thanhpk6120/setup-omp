@@ -549,7 +549,7 @@ if (Test-Path $srcSkills) {
 }
 
 # ------------------------------------------------------------------------------
-# Trash Guard Protection (Hard-delete prevention for OMP, Claude Code & Shell)
+# Trash Guard Protection (Hard-delete prevention for OMP via extension)
 # ------------------------------------------------------------------------------
 Setup-TrashGuard -OmpDir $OmpDir -DryRun:$DryRun -SkipInstall:$SkipInstall
 
