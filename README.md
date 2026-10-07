@@ -1,6 +1,6 @@
 # setup-omp
 
-Script bootstrap thiết lập môi trường và cấu hình `.omp` (`mcp.json`, `models.yml`, `config.yml`) cho máy mới, bám sát tài liệu chính thức của từng nhà cung cấp MCP. Default AI Base URL sử dụng `https://openrouter.ai/api/v1`.
+Script bootstrap thiết lập môi trường và cấu hình `.omp` (`mcp.json`, `models.yml`, `config.yml`) cho máy mới, bám sát tài liệu chính thức của từng nhà cung cấp MCP. Default AI Base URL sử dụng `http://localhost:20128/v1`.
 
 ## Danh sách MCP Servers & Tài liệu chính thức
 
@@ -44,6 +44,7 @@ Hệ thống triển khai cơ chế **Trash Guard** để ngăn chặn hoàn to�
 Mở PowerShell trên máy mới và chạy:
 
 ```powershell
+$env:AI_BASE_URL = "http://localhost:20128/v1"
 irm https://raw.githubusercontent.com/thanhpk6120/setup-omp/main/install.ps1 | iex
 ```
 

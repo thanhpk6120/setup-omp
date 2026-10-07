@@ -121,11 +121,18 @@ function global:npm {
 }
 finally {
     $env:Path = $oldPath
-    if ($mockBinDir -and (Test-Path $mockBinDir)) { trash $mockBinDir }
-    if ($mockNpmDir -and (Test-Path $mockNpmDir)) { trash $mockNpmDir }
-    if (Test-Path Function:npm) { Microsoft.PowerShell.Management\Remove-Item Function:npm -ErrorAction SilentlyContinue }
-
-    if (Test-Path $tempDir) {
-        trash $tempDir
+    Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
+    function Safe-Trash($p) {
+        if ($p -and (Test-Path $p)) {
+            if (Get-Command "trash" -ErrorAction SilentlyContinue) {
+                trash $p
+            } else {
+                try { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($p, 'OnlyErrorDialogs', 'SendToRecycleBin') } catch {}
+            }
+        }
     }
+    Safe-Trash $mockBinDir
+    Safe-Trash $mockNpmDir
+    if (Test-Path Function:npm) { Microsoft.PowerShell.Management\Remove-Item Function:npm -ErrorAction SilentlyContinue }
+    Safe-Trash $tempDir
 }
