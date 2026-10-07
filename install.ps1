@@ -45,10 +45,7 @@ finally {
 
     Write-Host ""
     Write-Host "================================================================" -ForegroundColor Green
-    Write-Host " CAI DAT THANH CONG!" -ForegroundColor Green
-    Write-Host " Da bao ve va kich hoat hook chan xoa cung (Trash Guard) cho:" -ForegroundColor Green
-    Write-Host "  - OMP (Oh-My-Pi)" -ForegroundColor Cyan
-    Write-Host "  - DSH (DeepSeek Harness)" -ForegroundColor Cyan
-    Write-Host "  - Claude Code" -ForegroundColor Cyan
+    Write-Host " CAI DAT THANH CONG CHO OMP!" -ForegroundColor Green
+    Write-Host " Da bao ve va kich hoat hook chan xoa cung (Trash Guard) cho OMP" -ForegroundColor Cyan
     Write-Host "================================================================" -ForegroundColor Green
 }

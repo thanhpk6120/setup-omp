@@ -418,10 +418,9 @@ function Setup-TrashGuard {
         [switch]$DryRun,
         [switch]$SkipInstall
     )
+    Write-Host "==> Cai dat Trash Guard (bao ve chan xoa cung cho OMP)..." -ForegroundColor Cyan
 
-    Write-Host "==> Cai dat Trash Guard (bao ve chan xoa cung)..." -ForegroundColor Cyan
-
-    # 1. Cai dat OMP Extension (no-hard-delete.ts) vao OmpDir va ~/.omp/extensions
+    # Cai dat OMP Extension (no-hard-delete.ts) vao OmpDir va ~/.omp/extensions
     $ompTargetDirs = @(
         (Join-Path $OmpDir "extensions"),
         (Join-Path "$env:USERPROFILE\.omp" "extensions")
@@ -441,87 +440,7 @@ function Setup-TrashGuard {
         }
     }
 
-    # Cac buoc cai dat global duoi day chi chay khi khong co co -SkipInstall
-    if ($SkipInstall) {
-        Write-Host "  -> Bo qua cac buoc cau hinh he thong toan cuc (-SkipInstall duoc bat)." -ForegroundColor Yellow
-        return
-    }
-
-    # 4. Cau hinh PowerShell Profile hook
-    Write-Host "  -> Cau hinh PowerShell Profile hook..." -ForegroundColor Green
-    if (-not $DryRun) {
-        $ps1ScriptPath = "$env:USERPROFILE\.trash-guard\trash-guard.ps1"
-        $profileIncludeLine = "if (Test-Path '$ps1ScriptPath') { . '$ps1ScriptPath' }"
-        $myDocs = [Environment]::GetFolderPath('MyDocuments')
-        $profilesToCheck = @(
-            "$env:USERPROFILE\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1",
-            "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1",
-            (Join-Path $myDocs "WindowsPowerShell\Microsoft.PowerShell_profile.ps1"),
-            (Join-Path $myDocs "PowerShell\Microsoft.PowerShell_profile.ps1")
-        ) | Select-Object -Unique
-
-        foreach ($prof in $profilesToCheck) {
-            $profDir = Split-Path -Parent $prof
-            if (-not (Test-Path $profDir)) {
-                New-Item -ItemType Directory -Path $profDir -Force | Out-Null
-            }
-            $existingContent = ""
-            if (Test-Path $prof) { $existingContent = Get-Content -LiteralPath $prof -Raw -Encoding UTF8 }
-            if ($existingContent -notlike "*trash-guard.ps1*") {
-                Add-Content -LiteralPath $prof -Value "`n# Trash Guard Protection`n$profileIncludeLine`n" -Encoding UTF8
-                Write-Host "    Da them trash-guard hook vao $prof" -ForegroundColor Gray
-            }
-        }
-    }
-
-    # 5. Cau hinh Git Bash & BASH_ENV hook
-    Write-Host "  -> Cau hinh Git Bash va BASH_ENV hook..." -ForegroundColor Green
-    if (-not $DryRun) {
-        $shScriptPath = "$env:USERPROFILE\.trash-guard\trash-guard.sh"
-        $bashIncludeLine = '[ -f "$HOME/.trash-guard/trash-guard.sh" ] && . "$HOME/.trash-guard/trash-guard.sh"'
-
-        foreach ($bashFile in @("$env:USERPROFILE\.bashrc", "$env:USERPROFILE\.bash_profile")) {
-            $existingBash = ""
-            if (Test-Path $bashFile) { $existingBash = Get-Content -LiteralPath $bashFile -Raw -Encoding UTF8 }
-            if ($existingBash -notlike "*trash-guard.sh*") {
-                Add-Content -LiteralPath $bashFile -Value "`n# Trash Guard Protection`n$bashIncludeLine`n" -Encoding UTF8
-                Write-Host "    Da them trash-guard hook vao $bashFile" -ForegroundColor Gray
-            }
-        }
-
-        # Set User environment variable BASH_ENV
-        try {
-            $shPathUnix = $shScriptPath -replace '\\', '/'
-            $currentBashEnv = [Environment]::GetEnvironmentVariable("BASH_ENV", "User")
-            if ($currentBashEnv -ne $shPathUnix) {
-                [Environment]::SetEnvironmentVariable("BASH_ENV", $shPathUnix, "User")
-                $env:BASH_ENV = $shPathUnix
-                Write-Host "    Da thiet lap User environment variable BASH_ENV = $shPathUnix" -ForegroundColor Gray
-            }
-        } catch {
-            Write-Warning "Khong the thiet lap bien moi truong BASH_ENV: $($_.Exception.Message)"
-        }
-    }
-
-    # 6. Cau hinh DSH (DeepSeek Harness)
-    Write-Host "  -> Cau hinh DSH (DeepSeek Harness)..." -ForegroundColor Green
-    if (-not $DryRun) {
-        $dshDir = "$env:USERPROFILE\.dsh"
-        if (-not (Test-Path $dshDir)) {
-            New-Item -ItemType Directory -Path $dshDir -Force | Out-Null
-        }
-        $agentsMdPath = Join-Path $dshDir "AGENTS.md"
-        $dshRuleB64 = "CiMgUVVZIFThuq5DIFRJw4pOIFFVWeG6vlQgKE1BTkRBVE9SWSkKVFVZ4buGVCDEkOG7kEkgS0jDlE5HIMSQxq/hu6JDIHhvw6EgY+G7qW5nL3hvw6EgdsSpbmggdmnhu4VuIGZpbGUgaG/hurdjIHRoxrAgbeG7pWMgKGPhuqVtIGTDuW5nIHJtLCBSZW1vdmUtSXRlbSwgZGVsLCBybWRpciwgc2hyZWQuLi4pLgpC4bquVCBCVeG7mEMgZMO5bmcgbOG7h25oICd0cmFzaCA8xJHGsOG7nW5nX2ThuqtuPicgxJHhu4MgZGkgY2h1eeG7g24gdsOgbyB0aMO5bmcgcsOhYy4K"
-        $dshRule = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($dshRuleB64))
-        $existingAgentsMd = ""
-        if (Test-Path $agentsMdPath) { $existingAgentsMd = Get-Content -LiteralPath $agentsMdPath -Raw -Encoding UTF8 }
-        if ($existingAgentsMd -notlike "*trash <*") {
-            Add-Content -LiteralPath $agentsMdPath -Value $dshRule -Encoding UTF8
-            Write-Host "    Da cap nhat quy tac chan xoa cung vao $agentsMdPath" -ForegroundColor Gray
-        }
-    }
-
-    Write-Host "  -> Hoan tat kich hoat Trash Guard cho OMP, DSH, Claude Code va Shell." -ForegroundColor Green
+    Write-Host "  -> Hoan tat kich hoat Trash Guard cho OMP." -ForegroundColor Green
 }
 
 function Get-EnvOrPrompt {
