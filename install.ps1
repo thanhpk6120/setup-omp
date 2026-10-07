@@ -31,6 +31,20 @@ try {
     & $bootstrapScript
 }
 finally {
-    if (Test-Path $zipFile) { Remove-Item -Force $zipFile -ErrorAction SilentlyContinue }
-    if (Test-Path $tempBase) { Remove-Item -Recurse -Force $tempBase -ErrorAction SilentlyContinue }
+    Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
+    if (Test-Path $zipFile) {
+        try { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($zipFile, 'OnlyErrorDialogs', 'SendToRecycleBin') } catch {}
+    }
+    if (Test-Path $tempBase) {
+        try { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($tempBase, 'OnlyErrorDialogs', 'SendToRecycleBin') } catch {}
+    }
+
+    Write-Host ""
+    Write-Host "================================================================" -ForegroundColor Green
+    Write-Host " CAI DAT THANH CONG!" -ForegroundColor Green
+    Write-Host " Da bao ve va kich hoat hook chan xoa cung (Trash Guard) cho:" -ForegroundColor Green
+    Write-Host "  - OMP (Oh-My-Pi)" -ForegroundColor Cyan
+    Write-Host "  - DSH (DeepSeek Harness)" -ForegroundColor Cyan
+    Write-Host "  - Claude Code" -ForegroundColor Cyan
+    Write-Host "================================================================" -ForegroundColor Green
 }

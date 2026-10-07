@@ -112,15 +112,20 @@ function global:npm {
         throw "ASSERTION FAILED: No SKILL.md found in copied skills/ directory"
     }
 
+    $extFile = Join-Path $tempDir "extensions\no-hard-delete.ts"
+    if (-not (Test-Path $extFile)) {
+        throw "ASSERTION FAILED: Missing copied extensions/no-hard-delete.ts: $extFile"
+    }
+
     Write-Host "TEST PASSED: bootstrap created valid configs." -ForegroundColor Green
 }
 finally {
     $env:Path = $oldPath
-    if ($mockBinDir -and (Test-Path $mockBinDir)) { Remove-Item -Recurse -Force $mockBinDir -ErrorAction SilentlyContinue }
-    if ($mockNpmDir -and (Test-Path $mockNpmDir)) { Remove-Item -Recurse -Force $mockNpmDir -ErrorAction SilentlyContinue }
-    Remove-Item function:global:npm -ErrorAction SilentlyContinue
+    if ($mockBinDir -and (Test-Path $mockBinDir)) { trash $mockBinDir }
+    if ($mockNpmDir -and (Test-Path $mockNpmDir)) { trash $mockNpmDir }
+    if (Test-Path Function:npm) { Microsoft.PowerShell.Management\Remove-Item Function:npm -ErrorAction SilentlyContinue }
 
     if (Test-Path $tempDir) {
-        Remove-Item -Recurse -Force $tempDir
+        trash $tempDir
     }
 }

@@ -25,6 +25,20 @@ Script bootstrap thiết lập môi trường và cấu hình `.omp` (`mcp.json`
    - Hỗ trợ quét danh sách ổ đĩa và cho phép chọn vị trí lưu trữ (mặc định D:, C:).
    - Tự động kiểm tra và bảo toàn dữ liệu profile cũ nếu thư mục nguồn và mã nguồn đã tồn tại.
 > Ghi chú: `mcp.json` không còn trường `$schema` vì URL schema cũ trả 404.
+## Trash Guard (Hook Chặn Xóa Cứng)
+
+Hệ thống triển khai cơ chế **Trash Guard** để ngăn chặn hoàn toàn việc xóa vĩnh viễn (xóa cứng) tệp tin và thư mục ngoài ý muốn. Mọi thao tác xóa đều bắt buộc phải chuyển vào Recycle Bin (Thùng rác). 
+
+**Cơ chế bảo vệ đa nền tảng toàn diện:**
+- **OMP (Oh-My-Pi / Orca OMP):** Cài đặt tự động extension `no-hard-delete.ts` vào thư mục `extensions/` của OMP để chặn các lệnh xóa cứng (rm, Remove-Item, del, rmdir...) phát ra từ Bash/PowerShell trong quá trình thực thi tool.
+- **Claude Code:** Tự động tạo thư mục `~/.trash-guard` chứa script kiểm duyệt (`claude-pre-tool`), đồng thời inject hook `PreToolUse` cho Bash và PowerShell vào file `~/.claude/settings.json` để từ chối các lệnh xóa vĩnh viễn trước khi tool được thực thi.
+- **DSH (DeepSeek Harness / dsh-desktop):** Tự động đảm bảo `~/.dsh/AGENTS.md` chứa quy tắc tiên quyết cấm xóa cứng (yêu cầu dùng `trash`). Đồng thời kích hoạt Shell Guard chặn xóa ở tầng hệ điều hành thông qua `$PROFILE` (PowerShell) và `BASH_ENV` (Git Bash / Bash), định tuyến lại các lệnh xóa vĩnh viễn thành lỗi và yêu cầu sử dụng `trash`.
+**Hướng dẫn sử dụng:**
+- **TUYỆT ĐỐI KHÔNG SỬ DỤNG:** `rm`, `del`, `Remove-Item` hoặc `rmdir`.
+- **HÃY SỬ DỤNG:** Lệnh `trash <path>` để chuyển tệp/thư mục vào Recycle Bin một cách an toàn.
+
+> **Quy tắc tiên quyết (MANDATORY):** TẤT CẢ các lệnh xóa file/thư mục BẮT BUỘC phải dùng cách di chuyển nó vào thùng rác (Trash / Recycle Bin). Tuyệt đối không được xóa luôn/xóa vĩnh viễn dưới mọi hình thức.
+
 ## Cài đặt nhanh (1 dòng lệnh duy nhất)
 
 Mở PowerShell trên máy mới và chạy:
