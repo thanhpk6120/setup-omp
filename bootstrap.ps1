@@ -491,6 +491,9 @@ function Get-EnvOrPrompt {
         if ($AllowEmpty) {
             return ""
         }
+        if ([Console]::IsInputRedirected -or -not [Environment]::UserInteractive) {
+            throw "Error: '$EnvName' is required but cannot prompt in non-interactive session."
+        }
         Write-Host "Error: '$EnvName' is required. Please provide a value." -ForegroundColor Red
     }
 }
