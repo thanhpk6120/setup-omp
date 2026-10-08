@@ -1,19 +1,121 @@
-# install.ps1 - One-line installer for setup-omp
+# install.ps1 - One-line interactive installer for setup-omp
 [CmdletBinding()]
-param()
+param(
+    [switch]$Force,
+    [switch]$OverwriteAll,
+    [switch]$DryRun,
+    [switch]$SkipInstall,
+    [switch]$EnableMemorix,
+    [switch]$DisableMemorix,
+    [string]$OmpDir = "$env:USERPROFILE\.omp\agent"
+)
 
 $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-if (-not $env:AI_BASE_URL) {
-    $env:AI_BASE_URL = "http://localhost:20128/v1"
+
+Write-Host "================================================================" -ForegroundColor Cyan
+Write-Host "             SETUP-OMP INSTALLER - INTERACTIVE SETUP            " -ForegroundColor Cyan
+Write-Host "================================================================" -ForegroundColor Cyan
+
+# 1. Kiểm tra OMP CLI trong PATH
+Write-Host "==> Kiểm tra OMP CLI trong hệ thống..." -ForegroundColor Cyan
+$ompCmd = Get-Command "omp" -ErrorAction SilentlyContinue
+if (-not $ompCmd) {
+    Write-Host "[!] OMP CLI chưa được cài đặt trong PATH." -ForegroundColor Yellow
+    $installOmpPrompt = Read-Host "OMP CLI chưa được cài đặt. Bạn có muốn cài đặt OMP chính gốc ngay bây giờ không? [Y/n]"
+    if ([string]::IsNullOrWhiteSpace($installOmpPrompt) -or $installOmpPrompt.Trim().ToLower() -eq 'y') {
+        $terminalType = if ($PSVersionTable.PSEdition -eq "Core") { "PowerShell Core / pwsh" } else { "Windows PowerShell" }
+        Write-Host "==> Nhận diện terminal: $terminalType (PSVersion: $($PSVersionTable.PSVersion))." -ForegroundColor Cyan
+        Write-Host "==> Đang cài đặt OMP chính gốc qua https://omp.sh/install.ps1..." -ForegroundColor Cyan
+        try {
+            & ([scriptblock]::Create((Invoke-RestMethod -Uri "https://omp.sh/install.ps1" -UseBasicParsing))) -Binary
+            Write-Host "==> Cài đặt OMP CLI hoàn tất. Đang cập nhật PATH trong session hiện tại..." -ForegroundColor Green
+
+            # Cập nhật PATH trong phiên làm việc hiện tại
+            $candidatePaths = @(
+                (Join-Path $env:LOCALAPPDATA "omp"),
+                (Join-Path $env:LOCALAPPDATA "Programs\omp"),
+                (Join-Path $env:USERPROFILE ".omp\bin"),
+                (Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Links")
+            )
+
+            try {
+                $userPath = [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::User)
+                $machinePath = [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::Machine)
+                foreach ($p in ("$userPath;$machinePath" -split ';')) {
+                    if (-not [string]::IsNullOrWhiteSpace($p)) {
+                        $candidatePaths += $p.Trim()
+                    }
+                }
+            } catch {}
+
+            $pathItems = ($env:PATH -split ';') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() }
+            foreach ($cand in ($candidatePaths | Select-Object -Unique)) {
+                if ((Test-Path $cand) -and ($pathItems -notcontains $cand)) {
+                    $env:PATH = "$cand;$env:PATH"
+                    $pathItems += $cand
+                }
+            }
+
+            $ompCmd = Get-Command "omp" -ErrorAction SilentlyContinue
+            if ($ompCmd) {
+                Write-Host "==> Đã tìm thấy OMP CLI tại: $($ompCmd.Source)" -ForegroundColor Green
+            } else {
+                Write-Host "[!] Đã chạy installer nhưng chưa nhận diện được 'omp' trong session hiện tại. Bạn có thể cần mở lại terminal sau khi cài đặt." -ForegroundColor Yellow
+            }
+        } catch {
+            Write-Host "[!] Lỗi khi cài đặt OMP CLI: $_" -ForegroundColor Red
+        }
+    } else {
+        Write-Host "[!] Bỏ qua cài đặt OMP CLI. Tiếp tục cấu hình môi trường setup-omp..." -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "==> Đã phát hiện OMP CLI tại: $($ompCmd.Source)" -ForegroundColor Green
 }
 
+# 2. Hỏi tương tác cấu hình AI Provider
+Write-Host ""
+Write-Host "==> Cấu hình kết nối AI Provider..." -ForegroundColor Cyan
+$defaultAiUrl = if ($env:AI_BASE_URL) { $env:AI_BASE_URL } else { "http://localhost:20128/v1" }
+$inputAiUrl = Read-Host "Nhập AI Base URL [Mặc định: $defaultAiUrl]"
+$aiBaseUrl = if ([string]::IsNullOrWhiteSpace($inputAiUrl)) { $defaultAiUrl } else { $inputAiUrl.Trim() }
+
+$aiApiKey = ""
+if ($env:AI_API_KEY -and -not [string]::IsNullOrWhiteSpace($env:AI_API_KEY)) {
+    $inputAiKey = Read-Host "Nhập AI API Key [Mặc định từ `$env:AI_API_KEY: $($env:AI_API_KEY)]"
+    $aiApiKey = if ([string]::IsNullOrWhiteSpace($inputAiKey)) { $env:AI_API_KEY.Trim() } else { $inputAiKey.Trim() }
+} else {
+    while ([string]::IsNullOrWhiteSpace($aiApiKey)) {
+        $aiApiKey = Read-Host "Nhập AI API Key (Bắt buộc)"
+        if ([string]::IsNullOrWhiteSpace($aiApiKey)) {
+            Write-Host "[!] AI API Key không được để trống. Vui lòng nhập key." -ForegroundColor Yellow
+        }
+    }
+    $aiApiKey = $aiApiKey.Trim()
+}
+
+
+# 3. Hỏi tương tác cài đặt Memorix
+Write-Host ""
+Write-Host "==> Cấu hình tiện ích bổ sung..." -ForegroundColor Cyan
+if ($PSBoundParameters.ContainsKey('EnableMemorix')) {
+    $enableMemorix = $EnableMemorix.IsPresent
+} elseif ($PSBoundParameters.ContainsKey('DisableMemorix')) {
+    $enableMemorix = -not $DisableMemorix.IsPresent
+} else {
+    $installMemorixPrompt = Read-Host "Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]"
+    $enableMemorix = if (-not [string]::IsNullOrWhiteSpace($installMemorixPrompt) -and $installMemorixPrompt.Trim().ToLower() -eq 'y') { $true } else { $false }
+}
+
+$env:AI_BASE_URL = $aiBaseUrl
+$env:AI_API_KEY = $aiApiKey
 
 $zipUrl = "https://github.com/thanhpk6120/setup-omp/archive/refs/heads/main.zip"
 $tempBase = Join-Path $env:TEMP ("omp-install-" + [System.Guid]::NewGuid().ToString("N"))
 $zipFile = Join-Path $env:TEMP ("omp-repo-" + [System.Guid]::NewGuid().ToString("N") + ".zip")
 
 try {
+    Write-Host ""
     Write-Host "==> Downloading setup-omp package from GitHub..." -ForegroundColor Cyan
     Invoke-WebRequest -Uri $zipUrl -OutFile $zipFile -UseBasicParsing
 
@@ -31,21 +133,41 @@ try {
         throw "Lỗi: Không tìm thấy bootstrap.ps1 trong gói cài đặt."
     }
 
+    # Ghi file .env tạm thời để bootstrap.ps1 có thể nạp
+    $envFilePath = Join-Path $extractedRoot ".env"
+    $envContent = @"
+AI_BASE_URL=$aiBaseUrl
+AI_API_KEY=$aiApiKey
+"@
+    Set-Content -Path $envFilePath -Value $envContent -Encoding utf8
+
     Write-Host "==> Launching bootstrap..." -ForegroundColor Cyan
-    & $bootstrapScript
+    $bootstrapParams = @{}
+    if ($PSBoundParameters.ContainsKey('Force')) { $bootstrapParams['Force'] = $Force }
+    if ($PSBoundParameters.ContainsKey('OverwriteAll')) { $bootstrapParams['OverwriteAll'] = $OverwriteAll }
+    if ($PSBoundParameters.ContainsKey('DryRun')) { $bootstrapParams['DryRun'] = $DryRun }
+    if ($PSBoundParameters.ContainsKey('SkipInstall')) { $bootstrapParams['SkipInstall'] = $SkipInstall }
+    if ($PSBoundParameters.ContainsKey('OmpDir')) { $bootstrapParams['OmpDir'] = $OmpDir }
+    if ($enableMemorix) {
+        $bootstrapParams['EnableMemorix'] = $true
+    } else {
+        $bootstrapParams['DisableMemorix'] = $true
+    }
+
+    & $bootstrapScript @bootstrapParams
 }
 finally {
     Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
-    if (Test-Path $zipFile) {
-        try { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($zipFile, 'OnlyErrorDialogs', 'SendToRecycleBin') } catch {}
+    if ($zipFile -and (Test-Path $zipFile)) {
+        try { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($zipFile, [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin) } catch {}
     }
-    if (Test-Path $tempBase) {
-        try { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($tempBase, 'OnlyErrorDialogs', 'SendToRecycleBin') } catch {}
+    if ($tempBase -and (Test-Path $tempBase)) {
+        try { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($tempBase, [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin) } catch {}
     }
 
     Write-Host ""
     Write-Host "================================================================" -ForegroundColor Green
-    Write-Host " CAI DAT THANH CONG CHO OMP!" -ForegroundColor Green
-    Write-Host " Da bao ve va kich hoat hook chan xoa cung (Trash Guard) cho OMP" -ForegroundColor Cyan
+    Write-Host " CÀI ĐẶT HOÀN TẤT CHO OMP!" -ForegroundColor Green
+    Write-Host " Đã bảo vệ và kích hoạt hook chặn xóa cứng (Trash Guard) cho OMP" -ForegroundColor Cyan
     Write-Host "================================================================" -ForegroundColor Green
 }

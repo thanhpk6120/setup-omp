@@ -1,0 +1,75 @@
+shellPath: C:\Program Files\Git\bin\bash.exe
+symbolPreset: unicode
+composer:
+  shape: claude
+theme:
+  dark: titanium
+  light: light
+setupVersion: 2
+modelRoles:
+  default: 9router/claude-sonnet-5:medium
+  smol: 9router/claude-sonnet-5:medium
+  slow: 9router/claude-opus-5:xhigh
+  vision: 9router/claude-sonnet-5:medium
+  plan: 9router/claude-opus-5:high
+  designer: 9router/claude-sonnet-5:medium
+  commit: 9router/claude-sonnet-5:medium
+  tiny: 9router/claude-haiku-4-5-20251001
+  task: 9router/claude-sonnet-5:medium
+  advisor: 9router/claude-opus-5:xhigh
+computer:
+  enabled: true
+task:
+  agentModelOverrides:
+    task: 9router/claude-opus-5:medium
+    scout: 9router/claude-sonnet-5:medium
+    sonic: 9router/claude-sonnet-5:medium
+    docs-fact-check: 9router/claude-opus-5:high
+    docs-reviewer: 9router/claude-opus-5:medium
+    docs-init: 9router/claude-opus-5:medium
+    docs-update: 9router/claude-opus-5:medium
+    docs-reader: 9router/claude-sonnet-5:medium
+    architect: 9router/claude-opus-5:medium
+    plan-reviewer: 9router/claude-opus-5:medium
+    reviewer: 9router/claude-opus-5:medium
+    security-reviewer: 9router/claude-opus-5:high
+    dely-implementer: 9router/claude-sonnet-5:medium
+    dely-reviewer: 9router/claude-opus-5:high
+  eager: always
+  batch: true
+  maxConcurrency: 16
+  maxRecursionDepth: 2
+  agentAdvisor:
+    task: "on"
+    scout: "on"
+    sonic: "on"
+    docs-fact-check: "on"
+    docs-reviewer: "on"
+    docs-init: "on"
+    docs-update: "on"
+    docs-reader: "on"
+    architect: "on"
+    plan-reviewer: "on"
+    reviewer: "on"
+    security-reviewer: "on"
+    dely-implementer: "on"
+    dely-reviewer: "on"
+  agentPrewalk:
+    task: "on"
+    scout: "on"
+    sonic: "on"
+    docs-fact-check: "on"
+    docs-reviewer: "on"
+    docs-init: "on"
+    docs-update: "on"
+    docs-reader: "on"
+    architect: "on"
+    plan-reviewer: "on"
+    reviewer: "on"
+    security-reviewer: "on"
+    dely-implementer: "on"
+    dely-reviewer: "on"
+snapcompact:
+  systemPrompt: agents-md,rules-md
+dev:
+  autoqaConsent: granted

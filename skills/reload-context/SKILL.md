@@ -74,7 +74,7 @@ Thực hiện tuần tự theo 6 bước bắt buộc:
 
 ### Bước 5: Nạp Runtime Config & MCP
 - Kiểm tra file cấu hình bootstrap và MCP:
-  - Đọc `bootstrap.ps1` (nếu có trong repo) hoặc runtime config để nắm các MCP servers đang được thiết lập (`memorix`, `gitnexus`, `company-atlassian`, `context7`, `cloakbrowser`).
+  - Đọc `bootstrap.ps1` (nếu có trong repo) hoặc runtime config để nắm các MCP servers đang được thiết lập (`gitnexus`, `company-atlassian`, `context7`, `cloakbrowser`).
   - Ghi nhận directive `snapcompact.systemPrompt: agents-md,rules-md` để hiểu cơ chế giữ context nền của agent runtime.
 
 ### Bước 6: Quét nhanh Git Status & Diff
@@ -95,7 +95,7 @@ Tùy thuộc vào môi trường runtime đang chạy, agent áp dụng adapter 
 | **Config Directory** | `~/.omp/agent/` (`$env:USERPROFILE\.omp\agent` trên Windows) | `~/.dsh/` |
 | **Config Files** | `config.json`, `mcp.json`, `models.json` | `cordis.patch.yml`, cấu hình nội bộ DSH |
 | **Snapcompact Hook** | `snapcompact.systemPrompt: agents-md,rules-md` tự động đưa `AGENTS.md` và `RULES.md` vào system prompt sau compact | Quản lý qua context buffer hoặc file override riêng trong cordis |
-| **Plugin / Extensions** | `~/.omp/agent/extensions/` (vd: `memorix.js` cài qua `memorix setup --agent omp --global`) | Được tiêm qua layer container hoặc mount volume của Cordis sandbox |
+| **Plugin / Extensions** | `~/.omp/agent/extensions/` | Được tiêm qua layer container hoặc mount volume của Cordis sandbox |
 | **MCP Definition** | Khai báo trong `~/.omp/agent/mcp.json` theo chuẩn Desktop MCP JSON | Khai báo qua `cordis.patch.yml` hoặc profile server của DSH |
 
 ---

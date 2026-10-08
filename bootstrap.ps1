@@ -1,10 +1,25 @@
-# bootstrap.ps1 - Bootstrap .omp environment on fresh machine
+﻿# bootstrap.ps1 - Bootstrap .omp environment on fresh machine
 [CmdletBinding()]
 param(
     [switch]$DryRun,
     [switch]$SkipInstall,
+    [switch]$Force,
+    [switch]$OverwriteAll,
+    [switch]$EnableMemorix,
+    [switch]$DisableMemorix,
     [string]$OmpDir = "$env:USERPROFILE\.omp\agent"
 )
+
+if (-not $PSBoundParameters.ContainsKey('EnableMemorix') -and -not $PSBoundParameters.ContainsKey('DisableMemorix')) {
+    $memorixChoice = Read-Host "Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]"
+    $EnableMemorix = if (-not [string]::IsNullOrWhiteSpace($memorixChoice) -and $memorixChoice.Trim().ToLower() -eq 'y') { $true } else { $false }
+} elseif ($DisableMemorix.IsPresent) {
+    $EnableMemorix = $false
+} else {
+    $EnableMemorix = $EnableMemorix.IsPresent
+}
+
+$isForce = $Force.IsPresent -or $OverwriteAll.IsPresent
 
 $ErrorActionPreference = "Stop"
 
@@ -15,7 +30,7 @@ foreach ($tool in @("node", "npm", "git")) {
     }
 }
 
-# MCP tools (context7, gitnexus, memorix) require Node >= 18.
+# MCP tools (context7, gitnexus) require Node >= 22.18.0.
 $nodeVerRaw = (node -v 2>$null | Out-String).Trim()
 try {
     $nodeVer = [version]($nodeVerRaw.TrimStart('v'))
@@ -23,7 +38,9 @@ try {
     throw "Không thể xác định version của Node.js: '$nodeVerRaw'"
 }
 if ($nodeVer -lt [version]"22.18.0") {
-    throw "Yêu cầu Node.js >= 22.18.0 (do memorix yêu cầu >= 22.18.0, gitnexus yêu cầu ^22.18.0 || >= 24.11.0, context7 yêu cầu >= 20.18.1). Phiên bản hiện tại: '$nodeVerRaw'. Vui lòng nâng cấp Node.js."
+    $toolsList = "gitnexus, context7"
+    if ($EnableMemorix) { $toolsList = "memorix, gitnexus, context7" }
+    throw "Yêu cầu Node.js >= 22.18.0 (do $toolsList yêu cầu Node.js mới). Phiên bản hiện tại: '$nodeVerRaw'. Vui lòng nâng cấp Node.js."
 }
 
 # uv / uvx (required by company-atlassian MCP)
@@ -69,25 +86,6 @@ if (-not $SkipInstall) {
 }
 
 
-if (-not $SkipInstall -and -not (Get-Command "memorix" -ErrorAction SilentlyContinue)) {
-    Write-Host "==> Installing memorix globally..." -ForegroundColor Cyan
-    if (-not $DryRun) {
-        npm install -g memorix --silent
-    }
-}
-
-# Memorix OMP hooks live in the memorix-omp-package plugin (extensions/memorix.js),
-# registered by `memorix setup --agent omp --global` — `npm install -g` alone is not enough.
-if (-not $SkipInstall) {
-    Write-Host "==> Registering memorix OMP plugin + hooks..." -ForegroundColor Cyan
-    if (-not $DryRun) {
-        try {
-            memorix setup --agent omp --global
-        } catch {
-            Write-Warning "memorix setup failed (hooks not registered, run it manually): $($_.Exception.Message)"
-        }
-    }
-}
 
 # gitnexus: vendor recommends a global install + absolute-path config to avoid npx
 # (https://github.com/abhigyanpatwari/GitNexus README, "Fastest MCP startup").
@@ -133,6 +131,28 @@ if (-not $SkipInstall -and -not (Get-Command "glab" -ErrorAction SilentlyContinu
     }
 }
 
+if ($EnableMemorix) {
+    if (-not $SkipInstall) {
+        Write-Host "==> Installing memorix globally..." -ForegroundColor Cyan
+        if (-not $DryRun) {
+            npm install -g memorix --silent
+        }
+    }
+    Write-Host "==> Configuring memorix hook for omp..." -ForegroundColor Cyan
+    if (-not $DryRun) {
+        $npmPrefix = ""
+        try { $npmPrefix = (npm prefix -g 2>$null | Out-String).Trim() } catch {}
+        if ($npmPrefix -and (Test-Path $npmPrefix) -and ($env:Path -notlike "*$npmPrefix*")) {
+            $env:Path = "$npmPrefix;$env:Path"
+        }
+        try {
+            memorix setup --agent omp --global
+        } catch {
+            Write-Warning "Không thể chạy hook 'memorix setup --agent omp --global': $($_.Exception.Message)"
+        }
+    }
+}
+
 $npmRoot2 = ""
 try {
     $npmRoot2 = (npm root -g 2>$null) | Out-String
@@ -156,17 +176,12 @@ if (-not $DryRun) {
 }
 
 # MCP template — docs:
-#   memorix:           https://github.com/AVIDS2/memorix (setup --agent omp --global registers OMP hooks)
 #   gitnexus:          https://github.com/abhigyanpatwari/GitNexus (global install + absolute path avoids npx cold-start timeout)
 #   mcp-atlassian:     https://mcp-atlassian.soomiles.com/docs/installation (pinned via uvx --from)
 #   context7:          https://github.com/upstash/context7 (optional CONTEXT7_API_KEY for higher rate limits)
 $mcpTemplate = @'
 {
   "mcpServers": {
-    "memorix": {
-      "command": "memorix",
-      "args": ["serve", "--mode", "lite"]
-    },
     "gitnexus": {
       "command": "cmd",
       "args": [__GITNEXUS_ARGS__]
@@ -504,29 +519,170 @@ $cbTargetDir = Get-CloakBrowserInstallDir
 $cloakScriptPath = Setup-CloakBrowser -TargetDir $cbTargetDir -SourceDir $cbSourceDir -DryRun:$DryRun -SkipInstall:$SkipInstall
 $escapedCloakScript = ($cloakScriptPath).Replace('\', '\\')
 
-$mcpJson = $mcpTemplate.Replace("__JIRA_URL__", $jiraUrl).Replace("__JIRA_PERSONAL_TOKEN__", $jiraToken).Replace("__CONFLUENCE_URL__", $confUrl).Replace("__CONFLUENCE_PERSONAL_TOKEN__", $confToken).Replace("__GITNEXUS_ARGS__", $gitnexusArgsJson).Replace("__CONTEXT7_CMD__", $context7Command).Replace("__CONTEXT7_ARGS__", $context7ArgsJson).Replace("__CLOAKBROWSER_SCRIPT__", $escapedCloakScript)
+$templatesDir = Join-Path $PSScriptRoot "templates"
+
+# 1. Config template
+$configTemplateContent = $configTemplate
+$customConfigTpl = Join-Path $templatesDir "config.yml"
+if (Test-Path $customConfigTpl) {
+    Write-Host "  -> Đọc template config.yml từ $customConfigTpl..." -ForegroundColor Cyan
+    $configTemplateContent = Get-Content -Path $customConfigTpl -Raw -Encoding UTF8
+}
+$configContent = $configTemplateContent
+
+# 2. Models template
+$modelsTemplateContent = $modelsTemplate
+$customModelsTpl = Join-Path $templatesDir "models.yml"
+if (Test-Path $customModelsTpl) {
+    Write-Host "  -> Đọc template models.yml từ $customModelsTpl..." -ForegroundColor Cyan
+    $modelsTemplateContent = Get-Content -Path $customModelsTpl -Raw -Encoding UTF8
+}
+$modelsContent = $modelsTemplateContent.Replace("__AI_BASE_URL__", $aiBaseUrl).Replace("__AI_API_KEY__", $aiKey)
+
+# 3. MCP template
+$mcpTemplateContent = $mcpTemplate
+$customMcpTpl = Join-Path $templatesDir "mcp.json"
+if (Test-Path $customMcpTpl) {
+    Write-Host "  -> Đọc template mcp.json từ $customMcpTpl..." -ForegroundColor Cyan
+    $mcpTemplateContent = Get-Content -Path $customMcpTpl -Raw -Encoding UTF8
+}
+$mcpJson = $mcpTemplateContent.Replace("__JIRA_URL__", $jiraUrl).Replace("__JIRA_PERSONAL_TOKEN__", $jiraToken).Replace("__CONFLUENCE_URL__", $confUrl).Replace("__CONFLUENCE_PERSONAL_TOKEN__", $confToken).Replace("__CLOAKBROWSER_SCRIPT__", $escapedCloakScript)
+if ($mcpJson.Contains("__GITNEXUS_PATH__")) {
+    $mcpJson = $mcpJson.Replace("__GITNEXUS_PATH__", $absGn)
+}
+if ($mcpJson.Contains("__GITNEXUS_ARGS__")) {
+    $mcpJson = $mcpJson.Replace("__GITNEXUS_ARGS__", $gitnexusArgsJson)
+}
+if ($mcpJson.Contains("__CONTEXT7_PATH__")) {
+    $mcpJson = $mcpJson.Replace("__CONTEXT7_PATH__", $absCtx2)
+}
+if ($mcpJson.Contains("__CONTEXT7_CMD__")) {
+    $mcpJson = $mcpJson.Replace("__CONTEXT7_CMD__", $context7Command)
+}
+if ($mcpJson.Contains("__CONTEXT7_ARGS__")) {
+    $mcpJson = $mcpJson.Replace("__CONTEXT7_ARGS__", $context7ArgsJson)
+}
 if ($ctxKey) {
     $mcpJson = $mcpJson.Replace("__CONTEXT7_API_KEY__", $ctxKey)
 } else {
     # Anonymous mode: drop the env block so no placeholder key is ever sent.
     $mcpJson = $mcpJson -replace ',\s*"env":\s*\{\s*"CONTEXT7_API_KEY":\s*"__CONTEXT7_API_KEY__"\s*\}', ''
 }
-$files = @{
-    "mcp.json"   = $mcpJson
-    "models.yml" = $modelsTemplate.Replace("__AI_BASE_URL__", $aiBaseUrl).Replace("__AI_API_KEY__", $aiKey)
-    "config.yml" = $configTemplate
+
+try {
+    $mcpObj = $mcpJson | ConvertFrom-Json
+    if ($mcpObj -and $mcpObj.mcpServers) {
+        if ($EnableMemorix) {
+            if (-not $mcpObj.mcpServers.PSObject.Properties['memorix']) {
+                $mcpObj.mcpServers | Add-Member -MemberType NoteProperty -Name "memorix" -Value ([PSCustomObject]@{
+                    command = "memorix"
+                    args    = @("serve", "--mode", "lite")
+                })
+            }
+        } else {
+            if ($mcpObj.mcpServers.PSObject.Properties['memorix']) {
+                $mcpObj.mcpServers.PSObject.Properties.Remove('memorix')
+            }
+        }
+        $mcpJson = $mcpObj | ConvertTo-Json -Depth 10
+    }
+} catch {
+    Write-Warning "Không thể cập nhật cấu hình memorix trong mcp.json: $($_.Exception.Message)"
 }
+
+$files = [ordered]@{
+    "mcp.json"   = $mcpJson
+    "models.yml" = $modelsContent
+    "config.yml" = $configContent
+}
+
 foreach ($entry in $files.GetEnumerator()) {
-    $targetPath = Join-Path $OmpDir $entry.Key
+    $targetFileName = $entry.Key
+    $templateContent = $entry.Value
+    $targetPath = Join-Path $OmpDir $targetFileName
+
     if (Test-Path $targetPath) {
-        Write-Host "  -> Skipping $targetPath (already exists)" -ForegroundColor Yellow
+        $bakPath = "$targetPath.bak"
+        if ($targetFileName -eq "mcp.json") {
+            if ($isForce) {
+                Write-Host "  -> File cấu hình '$targetFileName' đã tồn tại. [-Force / -OverwriteAll] Tự động sao lưu và ghi đè." -ForegroundColor Yellow
+                if (-not $DryRun) {
+                    Copy-Item -Path $targetPath -Destination $bakPath -Force
+                    Write-Host "     Đã sao lưu sang $bakPath" -ForegroundColor DarkGray
+                    Set-Content -Path $targetPath -Value $templateContent -Encoding UTF8
+                }
+            } else {
+                $choice = Read-Host "[?] File cấu hình 'mcp.json' đã tồn tại. Bạn có muốn [O]verwrite (ghi đè), [M]erge (hợp nhất server cũ và mới), hay [S]kip (bỏ qua)? [O/M/s]"
+                $choice = if ($choice) { $choice.Trim() } else { "" }
+                if ($choice -match '^[mM]$') {
+                    Write-Host "  -> Đang hợp nhất $targetFileName (sao lưu sang $bakPath)..." -ForegroundColor Cyan
+                    if (-not $DryRun) {
+                        Copy-Item -Path $targetPath -Destination $bakPath -Force
+                        Write-Host "     Đã sao lưu sang $bakPath" -ForegroundColor DarkGray
+                        try {
+                            $existingJson = Get-Content -Path $targetPath -Raw -Encoding UTF8 | ConvertFrom-Json
+                            $newJson = $templateContent | ConvertFrom-Json
+                            if (-not $existingJson.PSObject.Properties['mcpServers']) {
+                                $existingJson | Add-Member -MemberType NoteProperty -Name "mcpServers" -Value ([PSCustomObject]@{})
+                            }
+                            if ($newJson -and $newJson.mcpServers) {
+                                foreach ($prop in $newJson.mcpServers.PSObject.Properties) {
+                                    if (-not $existingJson.mcpServers.PSObject.Properties[$prop.Name]) {
+                                        $existingJson.mcpServers | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value
+                                    }
+                                }
+                            }
+                            $mergedJsonStr = $existingJson | ConvertTo-Json -Depth 10
+                            Set-Content -Path $targetPath -Value $mergedJsonStr -Encoding UTF8
+                            Write-Host "  -> Đã hợp nhất $targetFileName thành công." -ForegroundColor Green
+                        } catch {
+                            Write-Warning "Không thể hợp nhất JSON: $($_.Exception.Message). Tiến hành ghi đè bằng template."
+                            Set-Content -Path $targetPath -Value $templateContent -Encoding UTF8
+                        }
+                    }
+                } elseif ($choice -match '^[oO]$') {
+                    Write-Host "  -> Ghi đè file $targetFileName (đã sao lưu sang $bakPath)" -ForegroundColor Green
+                    if (-not $DryRun) {
+                        Copy-Item -Path $targetPath -Destination $bakPath -Force
+                        Write-Host "     Đã sao lưu sang $bakPath" -ForegroundColor DarkGray
+                        Set-Content -Path $targetPath -Value $templateContent -Encoding UTF8
+                    }
+                } else {
+                    Write-Host "  -> Bỏ qua $targetFileName (giữ nguyên file hiện tại)." -ForegroundColor Yellow
+                }
+            }
+        } else {
+            # File YAML (config.yml, models.yml)
+            if ($isForce) {
+                Write-Host "  -> File cấu hình '$targetFileName' đã tồn tại. [-Force / -OverwriteAll] Tự động sao lưu và ghi đè." -ForegroundColor Yellow
+                if (-not $DryRun) {
+                    Copy-Item -Path $targetPath -Destination $bakPath -Force
+                    Write-Host "     Đã sao lưu sang $bakPath" -ForegroundColor DarkGray
+                    Set-Content -Path $targetPath -Value $templateContent -Encoding UTF8
+                }
+            } else {
+                $choice = Read-Host "[?] File cấu hình '$targetFileName' đã tồn tại. Bạn có muốn [O]verwrite (ghi đè) hay [S]kip (bỏ qua)? [O/s]"
+                $choice = if ($choice) { $choice.Trim() } else { "" }
+                if ($choice -match '^[oO]$') {
+                    Write-Host "  -> Ghi đè file $targetFileName (đã sao lưu sang $bakPath)" -ForegroundColor Green
+                    if (-not $DryRun) {
+                        Copy-Item -Path $targetPath -Destination $bakPath -Force
+                        Write-Host "     Đã sao lưu sang $bakPath" -ForegroundColor DarkGray
+                        Set-Content -Path $targetPath -Value $templateContent -Encoding UTF8
+                    }
+                } else {
+                    Write-Host "  -> Bỏ qua $targetFileName (giữ nguyên file hiện tại)." -ForegroundColor Yellow
+                }
+            }
+        }
     } else {
         Write-Host "  -> Creating $targetPath" -ForegroundColor Green
         if (-not $DryRun) {
-            Set-Content -Path $targetPath -Value $entry.Value -Encoding UTF8
+            Set-Content -Path $targetPath -Value $templateContent -Encoding UTF8
         }
     }
 }
+
 
 Write-Host "==> Copying static files and skills..." -ForegroundColor Cyan
 foreach ($mdFile in @("AGENTS.md", "RULES.md", "SYSTEM.md")) {
@@ -539,12 +695,61 @@ foreach ($mdFile in @("AGENTS.md", "RULES.md", "SYSTEM.md")) {
         }
     }
 }
+$targetAgentsPath = Join-Path $OmpDir "AGENTS.md"
+if ($EnableMemorix) {
+    $memSectionPath = Join-Path $templatesDir "memorix-agents-section.md"
+    if (Test-Path $memSectionPath) {
+        Write-Host "  -> Tích hợp hướng dẫn Memorix vào $targetAgentsPath..." -ForegroundColor Green
+        if (-not $DryRun -and (Test-Path $targetAgentsPath)) {
+            $memSectionContent = Get-Content -Path $memSectionPath -Raw -Encoding UTF8
+            Add-Content -Path $targetAgentsPath -Value "`r`n$memSectionContent" -Encoding UTF8
+        }
+    }
+}
+
 $srcSkills = Join-Path $PSScriptRoot "skills"
 $targetSkills = Join-Path $OmpDir "skills"
 if (Test-Path $srcSkills) {
-    Write-Host "  -> Copying skills/ to $targetSkills (overwrite)" -ForegroundColor Green
-    if (-not $DryRun) {
-        Copy-Item -Path $srcSkills -Destination $targetSkills -Recurse -Force
+    if (-not (Test-Path $targetSkills)) {
+        if (-not $DryRun) {
+            New-Item -ItemType Directory -Force -Path $targetSkills | Out-Null
+        }
+    }
+
+    if ($EnableMemorix) {
+        Write-Host "  -> Copying toàn bộ skills/ (bao gồm memorix) sang $targetSkills (overwrite)" -ForegroundColor Green
+        if (-not $DryRun) {
+            Get-ChildItem -Path $srcSkills -Directory | ForEach-Object {
+                Copy-Item -Path $_.FullName -Destination $targetSkills -Recurse -Force
+            }
+        }
+    } else {
+        Write-Host "  -> Copying skills/ (bỏ qua memorix-*) sang $targetSkills (overwrite)" -ForegroundColor Green
+        if (-not $DryRun) {
+            Get-ChildItem -Path $srcSkills -Directory | Where-Object { $_.Name -notlike "memorix-*" } | ForEach-Object {
+                Copy-Item -Path $_.FullName -Destination $targetSkills -Recurse -Force
+            }
+        }
+
+        # Dọn dẹp các kỹ năng memorix-* đã tồn tại trong $targetSkills bằng cách chuyển vào Thùng rác (Recycle Bin)
+        if (Test-Path $targetSkills) {
+            Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
+            $existingMemorixSkills = Get-ChildItem -Path $targetSkills -Directory -Filter "memorix-*" -ErrorAction SilentlyContinue
+            foreach ($memSkill in $existingMemorixSkills) {
+                Write-Host "  -> Di chuyển kỹ năng '$($memSkill.Name)' vào Thùng rác (Recycle Bin)..." -ForegroundColor Yellow
+                if (-not $DryRun) {
+                    try {
+                        [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory(
+                            $memSkill.FullName,
+                            [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
+                            [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin
+                        )
+                    } catch {
+                        Write-Warning "Không thể di chuyển '$($memSkill.FullName)' vào Thùng rác: $($_.Exception.Message)"
+                    }
+                }
+            }
+        }
     }
 }
 

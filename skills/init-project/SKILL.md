@@ -1,6 +1,6 @@
 ---
 name: init-project
-description: Initialize a non-git project workspace into a valid Git repository with a bootstrap README.md, committing ONLY README.md so VCS-dependent tools (Memorix, GitNexus) work properly.
+description: Initialize a non-git project workspace into a valid Git repository with a bootstrap README.md, committing ONLY README.md so VCS-dependent tools (GitNexus) work properly.
 ---
 
 # Init Project
