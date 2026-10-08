@@ -11,8 +11,15 @@ param(
 )
 
 if (-not $PSBoundParameters.ContainsKey('EnableMemorix') -and -not $PSBoundParameters.ContainsKey('DisableMemorix')) {
-    $memorixChoice = Read-Host "Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]"
-    $EnableMemorix = if (-not [string]::IsNullOrWhiteSpace($memorixChoice) -and $memorixChoice.Trim().ToLower() -eq 'y') { $true } else { $false }
+    $memorixCmd = Get-Command "memorix" -ErrorAction SilentlyContinue
+    if ($memorixCmd) {
+        Write-Host "==> Đã phát hiện Memorix trên hệ thống tại: $($memorixCmd.Source)" -ForegroundColor Green
+        Write-Host "    -> Tự động kích hoạt và cập nhật Memorix lên phiên bản mới nhất..." -ForegroundColor Cyan
+        $EnableMemorix = $true
+    } else {
+        $memorixChoice = Read-Host "Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]"
+        $EnableMemorix = if (-not [string]::IsNullOrWhiteSpace($memorixChoice) -and $memorixChoice.Trim().ToLower() -eq 'y') { $true } else { $false }
+    }
 } elseif ($DisableMemorix.IsPresent) {
     $EnableMemorix = $false
 } else {
@@ -135,7 +142,7 @@ if ($EnableMemorix) {
     if (-not $SkipInstall) {
         Write-Host "==> Installing memorix globally..." -ForegroundColor Cyan
         if (-not $DryRun) {
-            npm install -g memorix --silent
+            npm install -g memorix
         }
     }
     Write-Host "==> Configuring memorix hook for omp..." -ForegroundColor Cyan

@@ -103,8 +103,15 @@ if ($PSBoundParameters.ContainsKey('EnableMemorix')) {
 } elseif ($PSBoundParameters.ContainsKey('DisableMemorix')) {
     $enableMemorix = -not $DisableMemorix.IsPresent
 } else {
-    $installMemorixPrompt = Read-Host "Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]"
-    $enableMemorix = if (-not [string]::IsNullOrWhiteSpace($installMemorixPrompt) -and $installMemorixPrompt.Trim().ToLower() -eq 'y') { $true } else { $false }
+    $memorixCmd = Get-Command "memorix" -ErrorAction SilentlyContinue
+    if ($memorixCmd) {
+        Write-Host "==> Đã phát hiện Memorix trên hệ thống tại: $($memorixCmd.Source)" -ForegroundColor Green
+        Write-Host "    -> Tự động kích hoạt và cập nhật Memorix lên phiên bản mới nhất..." -ForegroundColor Cyan
+        $enableMemorix = $true
+    } else {
+        $installMemorixPrompt = Read-Host "Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]"
+        $enableMemorix = if (-not [string]::IsNullOrWhiteSpace($installMemorixPrompt) -and $installMemorixPrompt.Trim().ToLower() -eq 'y') { $true } else { $false }
+    }
 }
 
 $env:AI_BASE_URL = $aiBaseUrl

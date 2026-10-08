@@ -21,7 +21,7 @@ Script bootstrap thiết lập môi trường và cấu hình `.omp` (`mcp.json`
    - Tự động kiểm tra và bảo toàn dữ liệu profile cũ nếu thư mục nguồn và mã nguồn đã tồn tại.
 5. **memorix** (Tùy chọn / Optional): Tài liệu [AVIDS2/memorix](https://github.com/AVIDS2/memorix)
    - Cung cấp tính năng Session Memory & MCP server cho OMP (`memorix serve --mode lite`).
-   - Mặc định **không cài đặt** khi bootstrap để tối ưu tốc độ và đơn giản hóa môi trường. Người dùng có thể chọn cài đặt theo nhu cầu.
+   - Mặc định **không cài đặt** khi bootstrap nếu chưa có trên máy (người dùng có thể chọn cài đặt theo nhu cầu). Nếu hệ thống đã có sẵn Memorix trong PATH, script sẽ tự động nhận diện và cập nhật lên phiên bản mới nhất.
 > Ghi chú: `mcp.json` không còn trường `$schema` vì URL schema cũ trả 404.
 ## Trash Guard (Hook Chặn Xóa Cứng)
 
@@ -67,7 +67,8 @@ Script cài đặt sẽ tự động điều phối toàn bộ quá trình:
    - Các file quy tắc hệ thống (`AGENTS.md`, `RULES.md`, `SYSTEM.md`) và thư mục `skills/` luôn được đồng bộ cập nhật mới nhất.
 
 4. **Tùy chọn cài đặt Memorix (MCP & Session Memory)**:
-   - Script sẽ hỏi người dùng có muốn cài đặt Memorix hay không:
+   - **Tự động nhận diện**: Nếu hệ thống đã có sẵn Memorix trong PATH, script sẽ tự động nhận diện và cập nhật lên phiên bản mới nhất mà không cần hỏi lại.
+   - **Nếu chưa có sẵn**: Script sẽ hỏi người dùng có muốn cài đặt Memorix hay không:
      `Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]: `
    - **Mặc định là [y/N] (Không cài đặt)**: Nhấn Enter hoặc `N` để bỏ qua hoàn toàn. Hệ thống sẽ giữ môi trường tinh gọn (không cài package npm, không kích hoạt hook OMP, không cấu hình vào `mcp.json`, không cài các skill `skills/memorix-*` vào OMP, và không tích hợp hướng dẫn Memorix vào `AGENTS.md`).
    - **Nếu chọn Yes (`y`/`yes`)**: Hệ thống sẽ tự động cài đặt npm package (`npm install -g memorix`), đăng ký hook OMP (`memorix setup --agent omp --global`), bổ sung server `memorix` vào `mcp.json`, cài đặt toàn bộ skill `skills/memorix-*` vào OMP, và tích hợp tài liệu hướng dẫn Memorix vào `AGENTS.md` của OMP.
