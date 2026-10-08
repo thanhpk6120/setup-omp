@@ -80,18 +80,30 @@ if (-not $SkipInstall -and -not (Get-Command "uv" -ErrorAction SilentlyContinue)
 if (-not $SkipInstall) {
     Write-Host "==> Installing/updating mcp-atlassian globally via uv tool..." -ForegroundColor Cyan
     if (-not $DryRun) {
-        if (Get-Command "uv" -ErrorAction SilentlyContinue) {
+        $mcpAtlCmd = Get-Command "mcp-atlassian" -ErrorAction SilentlyContinue
+        $isInstalled = $false
+        if ($mcpAtlCmd) {
             try {
-                uv tool install mcp-atlassian==0.23.1 --upgrade
-            } catch {
-                Write-Warning "Failed to install mcp-atlassian via uv: $($_.Exception.Message)"
+                $verOut = (& mcp-atlassian --version 2>$null) | Out-String
+                if ($verOut -match "0\.23\.1") {
+                    Write-Host "  -> mcp-atlassian 0.23.1 da san sang. Bo qua cai lai de tranh xung dot khoa file." -ForegroundColor Green
+                    $isInstalled = $true
+                }
+            } catch {}
+        }
+        if (-not $isInstalled) {
+            if (Get-Command "uv" -ErrorAction SilentlyContinue) {
+                try {
+                    uv tool install mcp-atlassian==0.23.1 --upgrade
+                } catch {
+                    Write-Warning "Khong the cap nhat mcp-atlassian (co the dang chay ngam trong mot agent/IDE khac lam khoa file): $($_.Exception.Message)"
+                }
+            } else {
+                Write-Warning "'uv' is not available. Please install 'mcp-atlassian' manually: uv tool install mcp-atlassian==0.23.1"
             }
-        } else {
-            Write-Warning "'uv' is not available. Please install 'mcp-atlassian' manually: uv tool install mcp-atlassian==0.23.1"
         }
     }
 }
-
 
 
 # gitnexus: vendor recommends a global install + absolute-path config to avoid npx
