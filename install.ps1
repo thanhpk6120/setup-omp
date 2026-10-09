@@ -76,23 +76,18 @@ if (-not $ompCmd) {
 # 2. Hỏi tương tác cấu hình AI Provider
 Write-Host ""
 Write-Host "==> Cấu hình kết nối AI Provider..." -ForegroundColor Cyan
-$defaultAiUrl = if ($env:AI_BASE_URL) { $env:AI_BASE_URL } else { "http://localhost:20128/v1" }
+$defaultAiUrl = "http://localhost:20128/v1"
 $inputAiUrl = Read-Host "Nhập AI Base URL [Mặc định: $defaultAiUrl]"
 $aiBaseUrl = if ([string]::IsNullOrWhiteSpace($inputAiUrl)) { $defaultAiUrl } else { $inputAiUrl.Trim() }
 
 $aiApiKey = ""
-if ($env:AI_API_KEY -and -not [string]::IsNullOrWhiteSpace($env:AI_API_KEY)) {
-    $inputAiKey = Read-Host "Nhập AI API Key [Mặc định từ `$env:AI_API_KEY: $($env:AI_API_KEY)]"
-    $aiApiKey = if ([string]::IsNullOrWhiteSpace($inputAiKey)) { $env:AI_API_KEY.Trim() } else { $inputAiKey.Trim() }
-} else {
-    while ([string]::IsNullOrWhiteSpace($aiApiKey)) {
-        $aiApiKey = Read-Host "Nhập AI API Key (Bắt buộc)"
-        if ([string]::IsNullOrWhiteSpace($aiApiKey)) {
-            Write-Host "[!] AI API Key không được để trống. Vui lòng nhập key." -ForegroundColor Yellow
-        }
+while ([string]::IsNullOrWhiteSpace($aiApiKey)) {
+    $aiApiKey = Read-Host "Nhập AI API Key (Bắt buộc)"
+    if ([string]::IsNullOrWhiteSpace($aiApiKey)) {
+        Write-Host "[!] AI API Key không được để trống. Vui lòng nhập key." -ForegroundColor Yellow
     }
-    $aiApiKey = $aiApiKey.Trim()
 }
+$aiApiKey = $aiApiKey.Trim()
 
 
 # 3. Hỏi tương tác cài đặt Memorix
