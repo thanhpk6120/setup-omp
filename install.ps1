@@ -132,7 +132,7 @@ try {
 
     $bootstrapScript = Join-Path $extractedRoot "bootstrap.ps1"
     if (-not (Test-Path $bootstrapScript)) {
-        throw "Lỗi: Không tìm thấy bootstrap.ps1 trong gói cài đặt."
+        throw "Loi: Khong tim thay bootstrap.ps1 trong goi cai dat."
     }
 
     # Ghi file .env tạm thời để bootstrap.ps1 có thể nạp
@@ -156,7 +156,22 @@ AI_API_KEY=$aiApiKey
         $bootstrapParams['DisableMemorix'] = $true
     }
 
-    & $bootstrapScript @bootstrapParams
+    $paramList = @()
+    foreach ($key in $bootstrapParams.Keys) {
+        if ($bootstrapParams[$key] -eq $true) {
+            $paramList += "-$key"
+        } else {
+            $paramList += "-$key", "$($bootstrapParams[$key])"
+        }
+    }
+
+    $psExe = Join-Path $PSHOME "pwsh.exe"
+    if (-not (Test-Path $psExe)) { $psExe = Join-Path $PSHOME "powershell.exe" }
+    if (-not (Test-Path $psExe)) { $psExe = "powershell" }
+
+    $argsArray = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $bootstrapScript) + $paramList
+    & $psExe $argsArray
+    if ($LASTEXITCODE -ne 0) { throw "bootstrap.ps1 failed with exit code $LASTEXITCODE." }
 }
 finally {
     Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
@@ -167,9 +182,10 @@ finally {
         try { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($tempBase, [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin) } catch {}
     }
 
-    Write-Host ""
-    Write-Host "================================================================" -ForegroundColor Green
-    Write-Host " CÀI ĐẶT HOÀN TẤT CHO OMP!" -ForegroundColor Green
-    Write-Host " Đã bảo vệ và kích hoạt hook chặn xóa cứng (Trash Guard) cho OMP" -ForegroundColor Cyan
-    Write-Host "================================================================" -ForegroundColor Green
 }
+
+Write-Host ""
+Write-Host "================================================================" -ForegroundColor Green
+Write-Host " CAI DAT THANH CONG CHO OMP!" -ForegroundColor Green
+Write-Host " Da bao ve va kich hoat hook chan xoa cung (Trash Guard) cho OMP" -ForegroundColor Cyan
+Write-Host "================================================================" -ForegroundColor Green
