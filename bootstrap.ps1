@@ -9,22 +9,84 @@ param(
     [switch]$DisableMemorix,
     [string]$OmpDir = "$env:USERPROFILE\.omp\agent"
 )
+function Confirm-McpInstall {
+    param([string]$Name)
+    if ($DryRun) {
+        Write-Host "  -> [WhatIf] Bo qua prompt cai dat MCP '$Name'." -ForegroundColor DarkGray
+        return $false
+    }
+    if (-not [Environment]::UserInteractive -or $env:CI) {
+        return $false
+    }
+    if ($SkipInstall) {
+        return $false
+    }
+    $choice = Read-Host "[?] Cai dat MCP '$Name'? [y/N]"
+    if (-not [string]::IsNullOrWhiteSpace($choice) -and ($choice.Trim().ToLower() -eq 'y' -or $choice.Trim().ToLower() -eq 'yes')) {
+        return $true
+    }
+    return $false
+}
+
+function Get-EnvOrPrompt {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$EnvName,
+        [Parameter(Mandatory = $true)]
+        [string]$Prompt,
+        [string]$Default,
+        [switch]$AllowEmpty
+    )
+    $val = [Environment]::GetEnvironmentVariable($EnvName, "Process")
+    if (-not [string]::IsNullOrWhiteSpace($val)) { return $val }
+
+    $hasDefault = $PSBoundParameters.ContainsKey('Default')
+    while ($true) {
+        $promptStr = $Prompt
+        if ($hasDefault) { $promptStr = "$Prompt (Default: $Default)" }
+        $inputVal = Read-Host $promptStr
+        if (-not [string]::IsNullOrWhiteSpace($inputVal)) {
+            return $inputVal.Trim()
+        }
+        if ($hasDefault) {
+            return $Default
+        }
+        if ($AllowEmpty) {
+            return ""
+        }
+        if ([Console]::IsInputRedirected -or -not [Environment]::UserInteractive) {
+            throw "Error: '$EnvName' is required but cannot prompt in non-interactive session."
+        }
+        Write-Host "Error: '$EnvName' is required. Please provide a value." -ForegroundColor Red
+    }
+}
+
 
 if (-not $PSBoundParameters.ContainsKey('EnableMemorix') -and -not $PSBoundParameters.ContainsKey('DisableMemorix')) {
-    $memorixCmd = Get-Command "memorix" -ErrorAction SilentlyContinue
-    if ($memorixCmd) {
-        Write-Host "==> Đã phát hiện Memorix trên hệ thống tại: $($memorixCmd.Source)" -ForegroundColor Green
-        Write-Host "    -> Tự động kích hoạt và cập nhật Memorix lên phiên bản mới nhất..." -ForegroundColor Cyan
-        $EnableMemorix = $true
-    } else {
-        $memorixChoice = Read-Host "Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]"
-        $EnableMemorix = if (-not [string]::IsNullOrWhiteSpace($memorixChoice) -and $memorixChoice.Trim().ToLower() -eq 'y') { $true } else { $false }
-    }
+    $EnableMemorix = Confirm-McpInstall -Name "memorix"
+    if (-not $EnableMemorix) { Write-Host "Skipped MCP 'memorix' theo lua chon nguoi dung." -ForegroundColor Yellow }
 } elseif ($DisableMemorix.IsPresent) {
     $EnableMemorix = $false
+    Write-Host "Skipped MCP 'memorix' theo lua chon nguoi dung." -ForegroundColor Yellow
 } else {
     $EnableMemorix = $EnableMemorix.IsPresent
 }
+
+Write-Host "==> Xac nhan cai dat cac MCP Server khac..." -ForegroundColor Cyan
+$installAtlassian = Confirm-McpInstall -Name "company-atlassian"
+if (-not $installAtlassian) { Write-Host "Skipped MCP 'company-atlassian' theo lua chon nguoi dung." -ForegroundColor Yellow }
+
+$installGitnexus = Confirm-McpInstall -Name "gitnexus"
+if (-not $installGitnexus) { Write-Host "Skipped MCP 'gitnexus' theo lua chon nguoi dung." -ForegroundColor Yellow }
+
+$installContext7 = Confirm-McpInstall -Name "context7"
+if (-not $installContext7) { Write-Host "Skipped MCP 'context7' theo lua chon nguoi dung." -ForegroundColor Yellow }
+
+$installGlab = Confirm-McpInstall -Name "glab"
+if (-not $installGlab) { Write-Host "Skipped MCP 'glab' theo lua chon nguoi dung." -ForegroundColor Yellow }
+
+$installCloakbrowser = Confirm-McpInstall -Name "cloakbrowser"
+if (-not $installCloakbrowser) { Write-Host "Skipped MCP 'cloakbrowser' theo lua chon nguoi dung." -ForegroundColor Yellow }
 
 $isForce = $Force.IsPresent -or $OverwriteAll.IsPresent
 
@@ -51,101 +113,129 @@ if ($nodeVer -lt [version]"22.18.0") {
 }
 
 # uv / uvx (required by company-atlassian MCP)
-if (-not $SkipInstall -and -not (Get-Command "uv" -ErrorAction SilentlyContinue)) {
-    Write-Host "==> 'uv' not found. Installing uv..." -ForegroundColor Cyan
-    if (-not $DryRun) {
-        $installed = $false
-        if (Get-Command "pip" -ErrorAction SilentlyContinue) {
-            try {
-                pip install uv --quiet
-                $installed = $true
-            } catch {}
-        }
-        if (-not $installed -and (Get-Command "winget" -ErrorAction SilentlyContinue)) {
-            try {
-                winget install --id=astral-sh.uv -e --silent --accept-source-agreements --accept-package-agreements
-                $installed = $true
-            } catch {}
-        }
-        if (-not $installed) {
-            try {
-                irm https://astral.sh/uv/install.ps1 | iex
-                $env:Path = "$env:USERPROFILE\.local\bin;$env:USERPROFILE\.cargo\bin;$env:Path"
-            } catch {
-                Write-Warning "Could not install uv automatically. Please install it manually: https://docs.astral.sh/uv/"
-            }
-        }
-    }
-}
-if (-not $SkipInstall) {
-    Write-Host "==> Installing/updating mcp-atlassian globally via uv tool..." -ForegroundColor Cyan
-    if (-not $DryRun) {
-        $mcpAtlCmd = Get-Command "mcp-atlassian" -ErrorAction SilentlyContinue
-        $isInstalled = $false
-        if ($mcpAtlCmd) {
-            try {
-                $verOut = (& mcp-atlassian --version 2>$null) | Out-String
-                if ($verOut -match "0\.23\.1") {
-                    Write-Host "  -> mcp-atlassian 0.23.1 da san sang. Bo qua cai lai de tranh xung dot khoa file." -ForegroundColor Green
-                    $isInstalled = $true
-                }
-            } catch {}
-        }
-        if (-not $isInstalled) {
-            if (Get-Command "uv" -ErrorAction SilentlyContinue) {
+if ($installAtlassian) {
+    if (-not $SkipInstall -and -not (Get-Command "uv" -ErrorAction SilentlyContinue)) {
+        Write-Host "==> 'uv' not found. Installing uv..." -ForegroundColor Cyan
+        if (-not $DryRun) {
+            $installed = $false
+            if (Get-Command "pip" -ErrorAction SilentlyContinue) {
                 try {
-                    uv tool install mcp-atlassian==0.23.1 --upgrade
+                    pip install uv --quiet
+                    $installed = $true
+                } catch {}
+            }
+            if (-not $installed -and (Get-Command "winget" -ErrorAction SilentlyContinue)) {
+                try {
+                    winget install --id=astral-sh.uv -e --silent --accept-source-agreements --accept-package-agreements
+                    $installed = $true
+                } catch {}
+            }
+            if (-not $installed) {
+                try {
+                    irm https://astral.sh/uv/install.ps1 | iex
+                    $env:Path = "$env:USERPROFILE\.local\bin;$env:USERPROFILE\.cargo\bin;$env:Path"
                 } catch {
-                    Write-Warning "Khong the cap nhat mcp-atlassian (co the dang chay ngam trong mot agent/IDE khac lam khoa file): $($_.Exception.Message)"
+                    Write-Warning "Could not install uv automatically. Please install it manually: https://docs.astral.sh/uv/"
                 }
-            } else {
-                Write-Warning "'uv' is not available. Please install 'mcp-atlassian' manually: uv tool install mcp-atlassian==0.23.1"
+            }
+        }
+    }
+    if (-not $SkipInstall) {
+        Write-Host "==> Installing/updating mcp-atlassian globally via uv tool..." -ForegroundColor Cyan
+        if (-not $DryRun) {
+            $mcpAtlCmd = Get-Command "mcp-atlassian" -ErrorAction SilentlyContinue
+            $isInstalled = $false
+            if ($mcpAtlCmd) {
+                try {
+                    $verOut = (& mcp-atlassian --version 2>$null) | Out-String
+                    if ($verOut -match "0\.23\.1") {
+                        Write-Host "  -> mcp-atlassian 0.23.1 da san sang. Bo qua cai lai de tranh xung dot khoa file." -ForegroundColor Green
+                        $isInstalled = $true
+                    }
+                } catch {}
+            }
+            if (-not $isInstalled) {
+                if (Get-Command "uv" -ErrorAction SilentlyContinue) {
+                    try {
+                        uv tool install mcp-atlassian==0.23.1 --upgrade
+                    } catch {
+                        Write-Warning "Khong the cap nhat mcp-atlassian (co the dang chay ngam trong mot agent/IDE khac lam khoa file): $($_.Exception.Message)"
+                    }
+                } else {
+                    Write-Warning "'uv' is not available. Please install 'mcp-atlassian' manually: uv tool install mcp-atlassian==0.23.1"
+                }
             }
         }
     }
 }
-
 
 # gitnexus: vendor recommends a global install + absolute-path config to avoid npx
-# (https://github.com/abhigyanpatwari/GitNexus README, "Fastest MCP startup").
-if (-not $SkipInstall) {
-    Write-Host "==> Installing gitnexus globally..." -ForegroundColor Cyan
-    if (-not $DryRun) {
-        npm install -g gitnexus --silent
+$absGn = ""
+$gitnexusArgsJson = '""'
+if ($installGitnexus) {
+    if (-not $SkipInstall) {
+        Write-Host "==> Installing gitnexus globally..." -ForegroundColor Cyan
+        if (-not $DryRun) {
+            npm install -g gitnexus --silent
+        }
     }
-}
 
-$gn = Get-Command "gitnexus" -ErrorAction SilentlyContinue
-if ($gn -and $gn.Source) {
-    $absGn = ($gn.Source).Replace('\', '\\')
-    $gitnexusArgsJson = '"/c", "' + $absGn + '", "mcp"'
-} else {
-    throw "Lỗi: Không tìm thấy gitnexus bằng Get-Command. Dừng cài đặt."
+    $gn = Get-Command "gitnexus" -ErrorAction SilentlyContinue
+    if ($gn -and $gn.Source) {
+        $absGn = ($gn.Source).Replace('\', '\\')
+        $gitnexusArgsJson = '"/c", "' + $absGn + '", "mcp"'
+    } else {
+        throw "Lỗi: Không tìm thấy gitnexus bằng Get-Command. Dừng cài đặt."
+    }
 }
 
 $context7Command = '"node"'
-if (-not $SkipInstall) {
-    Write-Host "==> Installing context7 globally..." -ForegroundColor Cyan
-    if (-not $DryRun) {
-        npm install -g @upstash/context7-mcp --silent
+$absCtx2 = ""
+$context7ArgsJson = '""'
+if ($installContext7) {
+    if (-not $SkipInstall) {
+        Write-Host "==> Installing context7 globally..." -ForegroundColor Cyan
+        if (-not $DryRun) {
+            npm install -g @upstash/context7-mcp --silent
+        }
+    }
+
+    $npmRoot2 = ""
+    try {
+        $npmRoot2 = (npm root -g 2>$null) | Out-String
+        $npmRoot2 = $npmRoot2.Trim()
+    } catch {}
+
+    if ($npmRoot2) {
+        $ctxP2 = Join-Path $npmRoot2 "@upstash\context7-mcp\dist\index.js"
+        if (Test-Path $ctxP2) {
+            $absCtx2 = ($ctxP2).Replace('\', '\\')
+            $context7ArgsJson = '"' + $absCtx2 + '"'
+        } else {
+            throw "Lỗi: Không tìm thấy file dist\index.js của context7. Dừng cài đặt."
+        }
+    } else {
+        throw "Lỗi: Không tìm thấy thư mục npm root -g để lấy đường dẫn context7. Dừng cài đặt."
     }
 }
 
-if (-not $SkipInstall -and -not (Get-Command "glab" -ErrorAction SilentlyContinue)) {
-    Write-Host "==> Installing glab (GitLab CLI) globally..." -ForegroundColor Cyan
-    if (-not $DryRun) {
-        if (Get-Command "winget" -ErrorAction SilentlyContinue) {
-            try {
-                winget install -e --id GLab.GLab --silent --accept-source-agreements --accept-package-agreements | Out-Null
-                $glabProg = "$env:LOCALAPPDATA\Programs\glab"
-                if (Test-Path $glabProg) {
-                    $env:Path = "$glabProg;$env:Path"
+if ($installGlab) {
+    if (-not $SkipInstall -and -not (Get-Command "glab" -ErrorAction SilentlyContinue)) {
+        Write-Host "==> Installing glab (GitLab CLI) globally..." -ForegroundColor Cyan
+        if (-not $DryRun) {
+            if (Get-Command "winget" -ErrorAction SilentlyContinue) {
+                try {
+                    winget install -e --id GLab.GLab --silent --accept-source-agreements --accept-package-agreements | Out-Null
+                    $glabProg = "$env:LOCALAPPDATA\Programs\glab"
+                    if (Test-Path $glabProg) {
+                        $env:Path = "$glabProg;$env:Path"
+                    }
+                } catch {
+                    Write-Warning "Failed to install glab via winget: $($_.Exception.Message)"
                 }
-            } catch {
-                Write-Warning "Failed to install glab via winget: $($_.Exception.Message)"
+            } else {
+                Write-Warning "'winget' is not available. Please install glab manually."
             }
-        } else {
-            Write-Warning "'winget' is not available. Please install glab manually."
         }
     }
 }
@@ -170,24 +260,6 @@ if ($EnableMemorix) {
             Write-Warning "Không thể chạy hook 'memorix setup --agent omp --global': $($_.Exception.Message)"
         }
     }
-}
-
-$npmRoot2 = ""
-try {
-    $npmRoot2 = (npm root -g 2>$null) | Out-String
-    $npmRoot2 = $npmRoot2.Trim()
-} catch {}
-
-if ($npmRoot2) {
-    $ctxP2 = Join-Path $npmRoot2 "@upstash\context7-mcp\dist\index.js"
-    if (Test-Path $ctxP2) {
-        $absCtx2 = ($ctxP2).Replace('\', '\\')
-        $context7ArgsJson = '"' + $absCtx2 + '"'
-    } else {
-        throw "Lỗi: Không tìm thấy file dist\index.js của context7. Dừng cài đặt."
-    }
-} else {
-    throw "Lỗi: Không tìm thấy thư mục npm root -g để lấy đường dẫn context7. Dừng cài đặt."
 }
 Write-Host "==> Ensuring directory $OmpDir exists..." -ForegroundColor Cyan
 if (-not $DryRun) {
@@ -477,69 +549,56 @@ function Setup-TrashGuard {
     Write-Host "  -> Hoan tat kich hoat Trash Guard cho OMP." -ForegroundColor Green
 }
 
-function Get-EnvOrPrompt {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$EnvName,
-        [Parameter(Mandatory = $true)]
-        [string]$Prompt,
-        [string]$Default,
-        [switch]$AllowEmpty
-    )
-    $val = [Environment]::GetEnvironmentVariable($EnvName, "Process")
-    if (-not [string]::IsNullOrWhiteSpace($val)) { return $val }
-    
-    $hasDefault = $PSBoundParameters.ContainsKey('Default')
-    while ($true) {
-        $promptStr = $Prompt
-        if ($hasDefault) { $promptStr = "$Prompt (Default: $Default)" }
-        $inputVal = Read-Host $promptStr
-        if (-not [string]::IsNullOrWhiteSpace($inputVal)) {
-            return $inputVal.Trim()
-        }
-        if ($hasDefault) {
-            return $Default
-        }
-        if ($AllowEmpty) {
-            return ""
-        }
-        if ([Console]::IsInputRedirected -or -not [Environment]::UserInteractive) {
-            throw "Error: '$EnvName' is required but cannot prompt in non-interactive session."
-        }
-        Write-Host "Error: '$EnvName' is required. Please provide a value." -ForegroundColor Red
-    }
-}
 
 $aiBaseUrl = Get-EnvOrPrompt -EnvName "AI_BASE_URL" -Prompt "AI Base URL" -Default "http://localhost:20128/v1"
 $aiKey     = Get-EnvOrPrompt -EnvName "AI_API_KEY" -Prompt "AI API Key"
-$jiraUrl   = Get-EnvOrPrompt -EnvName "JIRA_URL" -Prompt "Jira URL" -Default "https://jira.cybertech.vn"
-$jiraToken = Get-EnvOrPrompt -EnvName "JIRA_PERSONAL_TOKEN" -Prompt "Jira Personal Token" -Default "YOUR_JIRA_PERSONAL_TOKEN"
-$confUrl   = Get-EnvOrPrompt -EnvName "CONFLUENCE_URL" -Prompt "Confluence URL" -Default "https://conf.cybertech.vn"
-$confToken = Get-EnvOrPrompt -EnvName "CONFLUENCE_PERSONAL_TOKEN" -Prompt "Confluence Personal Token" -Default "YOUR_CONFLUENCE_PERSONAL_TOKEN"
-$ctxKey    = Get-EnvOrPrompt -EnvName "CONTEXT7_API_KEY" -Prompt "Context7 API Key" -AllowEmpty
-$gitlabHost = Get-EnvOrPrompt -EnvName "GITLAB_HOST" -Prompt "GitLab Host" -Default "10.30.1.17"
-$gitlabToken = Get-EnvOrPrompt -EnvName "GITLAB_TOKEN" -Prompt "GitLab Personal Token" -AllowEmpty
 
-if (-not [string]::IsNullOrWhiteSpace($gitlabToken) -and -not $DryRun) {
-    Write-Host "==> Configuring GitLab authentication for host '$gitlabHost'..." -ForegroundColor Cyan
-    $proto = "https"
-    if ($gitlabHost -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -or $gitlabHost -match ':80') { $proto = "http" }
-    $glabCmd = "glab"
-    if (Get-Command "glab" -ErrorAction SilentlyContinue) { $glabCmd = "glab" } elseif (Test-Path "$env:LOCALAPPDATA\Programs\glab\glab.exe") { $glabCmd = "$env:LOCALAPPDATA\Programs\glab\glab.exe" }
-    try {
-        & $glabCmd config set api_protocol $proto -g --host $gitlabHost 2>$null
-        $tokenSec = $gitlabToken.Trim()
-        & $glabCmd auth login --hostname $gitlabHost --token $tokenSec 2>$null
-        Write-Host "  -> Logged in to GitLab ($gitlabHost) successfully." -ForegroundColor Green
-    } catch {
-        Write-Warning "Could not configure glab auth automatically: $($_.Exception.Message)"
+$jiraUrl   = ""
+$jiraToken = ""
+$confUrl   = ""
+$confToken = ""
+if ($installAtlassian) {
+    $jiraUrl   = Get-EnvOrPrompt -EnvName "JIRA_URL" -Prompt "Jira URL" -Default "https://jira.cybertech.vn"
+    $jiraToken = Get-EnvOrPrompt -EnvName "JIRA_PERSONAL_TOKEN" -Prompt "Jira Personal Token" -Default "YOUR_JIRA_PERSONAL_TOKEN"
+    $confUrl   = Get-EnvOrPrompt -EnvName "CONFLUENCE_URL" -Prompt "Confluence URL" -Default "https://conf.cybertech.vn"
+    $confToken = Get-EnvOrPrompt -EnvName "CONFLUENCE_PERSONAL_TOKEN" -Prompt "Confluence Personal Token" -Default "YOUR_CONFLUENCE_PERSONAL_TOKEN"
+}
+
+$ctxKey = ""
+if ($installContext7) {
+    $ctxKey = Get-EnvOrPrompt -EnvName "CONTEXT7_API_KEY" -Prompt "Context7 API Key" -AllowEmpty
+}
+
+$gitlabHost = "10.30.1.17"
+$gitlabToken = ""
+if ($installGlab) {
+    $gitlabHost  = Get-EnvOrPrompt -EnvName "GITLAB_HOST" -Prompt "GitLab Host" -Default "10.30.1.17"
+    $gitlabToken = Get-EnvOrPrompt -EnvName "GITLAB_TOKEN" -Prompt "GitLab Personal Token" -AllowEmpty
+
+    if (-not [string]::IsNullOrWhiteSpace($gitlabToken) -and -not $DryRun) {
+        Write-Host "==> Configuring GitLab authentication for host '$gitlabHost'..." -ForegroundColor Cyan
+        $proto = "https"
+        if ($gitlabHost -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -or $gitlabHost -match ':80') { $proto = "http" }
+        $glabCmd = "glab"
+        if (Get-Command "glab" -ErrorAction SilentlyContinue) { $glabCmd = "glab" } elseif (Test-Path "$env:LOCALAPPDATA\Programs\glab\glab.exe") { $glabCmd = "$env:LOCALAPPDATA\Programs\glab\glab.exe" }
+        try {
+            & $glabCmd config set api_protocol $proto -g --host $gitlabHost 2>$null
+            $tokenSec = $gitlabToken.Trim()
+            & $glabCmd auth login --hostname $gitlabHost --token $tokenSec 2>$null
+            Write-Host "  -> Logged in to GitLab ($gitlabHost) successfully." -ForegroundColor Green
+        } catch {
+            Write-Warning "Could not configure glab auth automatically: $($_.Exception.Message)"
+        }
     }
 }
 
-$cbSourceDir = Join-Path $PSScriptRoot "mcp-servers\cloakbrowser"
-$cbTargetDir = Get-CloakBrowserInstallDir
-$cloakScriptPath = Setup-CloakBrowser -TargetDir $cbTargetDir -SourceDir $cbSourceDir -DryRun:$DryRun -SkipInstall:$SkipInstall
-$escapedCloakScript = ($cloakScriptPath).Replace('\', '\\')
+$escapedCloakScript = ""
+if ($installCloakbrowser) {
+    $cbSourceDir = Join-Path $PSScriptRoot "mcp-servers\cloakbrowser"
+    $cbTargetDir = Get-CloakBrowserInstallDir
+    $cloakScriptPath = Setup-CloakBrowser -TargetDir $cbTargetDir -SourceDir $cbSourceDir -DryRun:$DryRun -SkipInstall:$SkipInstall
+    $escapedCloakScript = ($cloakScriptPath).Replace('\', '\\')
+}
 
 $templatesDir = Join-Path $PSScriptRoot "templates"
 
@@ -594,6 +653,21 @@ if ($ctxKey) {
 try {
     $mcpObj = $mcpJson | ConvertFrom-Json
     if ($mcpObj -and $mcpObj.mcpServers) {
+        if (-not $installAtlassian -and $mcpObj.mcpServers.PSObject.Properties['company-atlassian']) {
+            $mcpObj.mcpServers.PSObject.Properties.Remove('company-atlassian')
+        }
+        if (-not $installGitnexus -and $mcpObj.mcpServers.PSObject.Properties['gitnexus']) {
+            $mcpObj.mcpServers.PSObject.Properties.Remove('gitnexus')
+        }
+        if (-not $installContext7 -and $mcpObj.mcpServers.PSObject.Properties['context7']) {
+            $mcpObj.mcpServers.PSObject.Properties.Remove('context7')
+        }
+        if (-not $installGlab -and $mcpObj.mcpServers.PSObject.Properties['glab']) {
+            $mcpObj.mcpServers.PSObject.Properties.Remove('glab')
+        }
+        if (-not $installCloakbrowser -and $mcpObj.mcpServers.PSObject.Properties['cloakbrowser']) {
+            $mcpObj.mcpServers.PSObject.Properties.Remove('cloakbrowser')
+        }
         if ($EnableMemorix) {
             if (-not $mcpObj.mcpServers.PSObject.Properties['memorix']) {
                 $mcpObj.mcpServers | Add-Member -MemberType NoteProperty -Name "memorix" -Value ([PSCustomObject]@{
@@ -609,7 +683,7 @@ try {
         $mcpJson = $mcpObj | ConvertTo-Json -Depth 10
     }
 } catch {
-    Write-Warning "Không thể cập nhật cấu hình memorix trong mcp.json: $($_.Exception.Message)"
+    Write-Warning "Không thể cập nhật cấu hình mcp.json: $($_.Exception.Message)"
 }
 
 $files = [ordered]@{
