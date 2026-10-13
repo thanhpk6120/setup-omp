@@ -247,8 +247,16 @@ if ($EnableMemorix) {
             npm install -g memorix
         }
     }
-    Write-Host "==> Configuring memorix hook for omp..." -ForegroundColor Cyan
-    if (-not $DryRun) {
+    $shouldSetupHook = $false
+    if (-not $DryRun -and [Environment]::UserInteractive -and -not $env:CI -and -not $SkipInstall) {
+        $hookChoice = Read-Host "[?] Cai dat Hook tich hop Memorix vao OMP? (Yeu cau cai dat 'bun') [y/N]"
+        if (-not [string]::IsNullOrWhiteSpace($hookChoice) -and ($hookChoice.Trim().ToLower() -eq 'y' -or $hookChoice.Trim().ToLower() -eq 'yes')) {
+            $shouldSetupHook = $true
+        }
+    }
+
+    if ($shouldSetupHook) {
+        Write-Host "==> Configuring memorix hook for omp..." -ForegroundColor Cyan
         $npmPrefix = ""
         try { $npmPrefix = (npm prefix -g 2>$null | Out-String).Trim() } catch {}
         if ($npmPrefix -and (Test-Path $npmPrefix) -and ($env:Path -notlike "*$npmPrefix*")) {
@@ -258,6 +266,10 @@ if ($EnableMemorix) {
             memorix setup --agent omp --global
         } catch {
             Write-Warning "Không thể chạy hook 'memorix setup --agent omp --global': $($_.Exception.Message)"
+        }
+    } else {
+        if (-not $DryRun) {
+            Write-Host "==> Bo qua cau hinh hook memorix cho omp." -ForegroundColor DarkGray
         }
     }
 }
