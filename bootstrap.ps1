@@ -838,7 +838,7 @@ foreach ($mdFile in @("AGENTS.md", "RULES.md", "SYSTEM.md")) {
             }
         } else {
             $choice = Read-Host "[?] File '$targetPath' da ton tai. Ban co muon [O]verwrite (ghi de) hay [S]kip (bo qua)? [O/s]"
-            if ($choice.Trim().ToLower() -eq 's') {
+            if (-not [string]::IsNullOrWhiteSpace($choice) -and $choice.Trim().ToLower() -eq 's') {
                 Write-Host "  -> Bo qua file $targetPath." -ForegroundColor DarkGray
             } else {
                 $bak = "$targetPath.bak"

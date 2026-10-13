@@ -77,18 +77,28 @@ if (-not $ompCmd) {
 Write-Host ""
 Write-Host "==> Cấu hình kết nối AI Provider..." -ForegroundColor Cyan
 $defaultAiUrl = "http://localhost:20128/v1"
-$inputAiUrl = Read-Host "Nhập AI Base URL [Mặc định: $defaultAiUrl]"
+if ($env:AI_BASE_URL) { $defaultAiUrl = $env:AI_BASE_URL }
+$inputAiUrl = ""
+if ([Console]::IsInputRedirected -or -not [Environment]::UserInteractive) {
+    $inputAiUrl = $defaultAiUrl
+} else {
+    $inputAiUrl = Read-Host "Nhập AI Base URL [Mặc định: $defaultAiUrl]"
+}
 $aiBaseUrl = if ([string]::IsNullOrWhiteSpace($inputAiUrl)) { $defaultAiUrl } else { $inputAiUrl.Trim() }
 
 $aiApiKey = ""
+if (-not [string]::IsNullOrWhiteSpace($env:AI_API_KEY)) { $aiApiKey = $env:AI_API_KEY.Trim() }
 while ([string]::IsNullOrWhiteSpace($aiApiKey)) {
-    $aiApiKey = Read-Host "Nhập AI API Key (Bắt buộc)"
-    if ([string]::IsNullOrWhiteSpace($aiApiKey)) {
-        Write-Host "[!] AI API Key không được để trống. Vui lòng nhập key." -ForegroundColor Yellow
+    if ([Console]::IsInputRedirected -or -not [Environment]::UserInteractive) {
+        throw "Lỗi: Đang chạy ở chế độ non-interactive nhưng AI API Key chưa được cung cấp qua biến môi trường `$env:AI_API_KEY`."
     }
+    $inputKey = Read-Host "Nhập AI API Key (Bắt buộc)"
+    if (-not [string]::IsNullOrWhiteSpace($inputKey)) {
+        $aiApiKey = $inputKey.Trim()
+        break
+    }
+    Write-Host "[!] AI API Key không được để trống. Vui lòng nhập key." -ForegroundColor Yellow
 }
-$aiApiKey = $aiApiKey.Trim()
-
 
 # 3. Hỏi tương tác cài đặt Memorix
 Write-Host ""
@@ -102,7 +112,12 @@ if ($PSBoundParameters.ContainsKey('EnableMemorix')) {
     if ($memorixCmd) {
         Write-Host "==> Đã phát hiện Memorix trên hệ thống tại: $($memorixCmd.Source)" -ForegroundColor Green
     }
-    $installMemorixPrompt = Read-Host "Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]"
+    $installMemorixPrompt = ""
+    if ([Console]::IsInputRedirected -or -not [Environment]::UserInteractive) {
+        $installMemorixPrompt = "n"
+    } else {
+        $installMemorixPrompt = Read-Host "Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]"
+    }
     $enableMemorix = if (-not [string]::IsNullOrWhiteSpace($installMemorixPrompt) -and $installMemorixPrompt.Trim().ToLower() -eq 'y') { $true } else { $false }
 }
 
