@@ -11,6 +11,10 @@ param(
 )
 function Confirm-McpInstall {
     param([string]$Name)
+    if ($Force -or $OverwriteAll) {
+        Write-Host "  -> [Force] Tu dong cai dat MCP '$Name'." -ForegroundColor Cyan
+        return $true
+    }
     if ($DryRun) {
         Write-Host "  -> [WhatIf] Bo qua prompt cai dat MCP '$Name'." -ForegroundColor DarkGray
         return $false
@@ -104,12 +108,12 @@ $nodeVerRaw = (node -v 2>$null | Out-String).Trim()
 try {
     $nodeVer = [version]($nodeVerRaw.TrimStart('v'))
 } catch {
-    throw "Không thể xác định version của Node.js: '$nodeVerRaw'"
+    throw "Khong the xac dinh version cua Node.js: '$nodeVerRaw'"
 }
 if ($nodeVer -lt [version]"22.18.0") {
     $toolsList = "gitnexus, context7"
     if ($EnableMemorix) { $toolsList = "memorix, gitnexus, context7" }
-    throw "Yêu cầu Node.js >= 22.18.0 (do $toolsList yêu cầu Node.js mới). Phiên bản hiện tại: '$nodeVerRaw'. Vui lòng nâng cấp Node.js."
+    throw "Yeu cau Node.js >= 22.18.0 (do $toolsList yeu cau Node.js moi). Phien ban hien tai: '$nodeVerRaw'. Vui long nang cap Node.js."
 }
 
 # uv / uvx (required by company-atlassian MCP)
@@ -195,7 +199,7 @@ if ($installGitnexus) {
         $absGn = $gnPath.Replace('\', '\\')
         $gitnexusArgsJson = '"/c", "' + $absGn + '", "mcp"'
     } else {
-        throw "Lỗi: Không tìm thấy gitnexus bằng Get-Command. Dừng cài đặt."
+        throw "Loi: Khong tim thay gitnexus bang Get-Command. Dung cai dat."
     }
 }
 
@@ -222,10 +226,10 @@ if ($installContext7) {
             $absCtx2 = ($ctxP2).Replace('\', '\\')
             $context7ArgsJson = '"' + $absCtx2 + '"'
         } else {
-            throw "Lỗi: Không tìm thấy file dist\index.js của context7. Dừng cài đặt."
+            throw "Loi: Khong tim thay file dist\index.js cua context7. Dung cai dat."
         }
     } else {
-        throw "Lỗi: Không tìm thấy thư mục npm root -g để lấy đường dẫn context7. Dừng cài đặt."
+        throw "Loi: Khong tim thay thu muc npm root -g de lay duong dan context7. Dung cai dat."
     }
 }
 
@@ -259,7 +263,7 @@ if ($EnableMemorix) {
     }
     $shouldSetupHook = $false
     if (-not $DryRun -and [Environment]::UserInteractive -and -not $env:CI -and -not $SkipInstall) {
-        $hookChoice = Read-Host "[?] Cai dat Hook tich hop Memorix vao OMP? (Yeu cau cai dat 'bun') [y/N]"
+        $hookChoice = Read-Host "[?] Cai dat Hook tich hop Memorix vao OMP? [y/N]"
         if (-not [string]::IsNullOrWhiteSpace($hookChoice) -and ($hookChoice.Trim().ToLower() -eq 'y' -or $hookChoice.Trim().ToLower() -eq 'yes')) {
             $shouldSetupHook = $true
         }
@@ -275,7 +279,7 @@ if ($EnableMemorix) {
         try {
             memorix setup --agent omp --global
         } catch {
-            Write-Warning "Không thể chạy hook 'memorix setup --agent omp --global': $($_.Exception.Message)"
+            Write-Warning "Khong the chay hook 'memorix setup --agent omp --global': $($_.Exception.Message)"
         }
     } else {
         if (-not $DryRun) {
@@ -628,16 +632,28 @@ $templatesDir = Join-Path $PSScriptRoot "templates"
 $configTemplateContent = $configTemplate
 $customConfigTpl = Join-Path $templatesDir "config.yml"
 if (Test-Path $customConfigTpl) {
-    Write-Host "  -> Đọc template config.yml từ $customConfigTpl..." -ForegroundColor Cyan
+    Write-Host "  -> Doc template config.yml tu $customConfigTpl..." -ForegroundColor Cyan
     $configTemplateContent = Get-Content -Path $customConfigTpl -Raw -Encoding UTF8
 }
 $configContent = $configTemplateContent
+# Tu dong phat hien duong dan bash.exe thuc te thay vi gan cung
+$detectedBash = (Get-Command bash.exe -ErrorAction SilentlyContinue).Source
+if (-not $detectedBash -or -not (Test-Path $detectedBash)) {
+    if (Test-Path "C:\Program Files\Git\bin\bash.exe") {
+        $detectedBash = "C:\Program Files\Git\bin\bash.exe"
+    } else {
+        $detectedBash = "bash.exe"
+    }
+}
+if ($configContent -match '(?m)^shellPath:') {
+    $configContent = [regex]::Replace($configContent, '(?m)^shellPath:\s*.*$', "shellPath: $detectedBash")
+}
 
 # 2. Models template
 $modelsTemplateContent = $modelsTemplate
 $customModelsTpl = Join-Path $templatesDir "models.yml"
 if (Test-Path $customModelsTpl) {
-    Write-Host "  -> Đọc template models.yml từ $customModelsTpl..." -ForegroundColor Cyan
+    Write-Host "  -> Doc template models.yml tu $customModelsTpl..." -ForegroundColor Cyan
     $modelsTemplateContent = Get-Content -Path $customModelsTpl -Raw -Encoding UTF8
 }
 $modelsContent = $modelsTemplateContent.Replace("__AI_BASE_URL__", $aiBaseUrl).Replace("__AI_API_KEY__", $aiKey)
@@ -646,7 +662,7 @@ $modelsContent = $modelsTemplateContent.Replace("__AI_BASE_URL__", $aiBaseUrl).R
 $mcpTemplateContent = $mcpTemplate
 $customMcpTpl = Join-Path $templatesDir "mcp.json"
 if (Test-Path $customMcpTpl) {
-    Write-Host "  -> Đọc template mcp.json từ $customMcpTpl..." -ForegroundColor Cyan
+    Write-Host "  -> Doc template mcp.json tu $customMcpTpl..." -ForegroundColor Cyan
     $mcpTemplateContent = Get-Content -Path $customMcpTpl -Raw -Encoding UTF8
 }
 $mcpJson = $mcpTemplateContent.Replace("__JIRA_URL__", $jiraUrl).Replace("__JIRA_PERSONAL_TOKEN__", $jiraToken).Replace("__CONFLUENCE_URL__", $confUrl).Replace("__CONFLUENCE_PERSONAL_TOKEN__", $confToken).Replace("__CLOAKBROWSER_SCRIPT__", $escapedCloakScript)
@@ -705,7 +721,7 @@ try {
         $mcpJson = $mcpObj | ConvertTo-Json -Depth 10
     }
 } catch {
-    Write-Warning "Không thể cập nhật cấu hình mcp.json: $($_.Exception.Message)"
+    Write-Warning "Khong the cap nhat cau hinh mcp.json: $($_.Exception.Message)"
 }
 
 $files = [ordered]@{
@@ -723,20 +739,20 @@ foreach ($entry in $files.GetEnumerator()) {
         $bakPath = "$targetPath.bak"
         if ($targetFileName -eq "mcp.json") {
             if ($isForce) {
-                Write-Host "  -> File cấu hình '$targetFileName' đã tồn tại. [-Force / -OverwriteAll] Tự động sao lưu và ghi đè." -ForegroundColor Yellow
+                Write-Host "  -> File cau hinh '$targetFileName' da ton tai. [-Force / -OverwriteAll] Tu dong sao luu va ghi de." -ForegroundColor Yellow
                 if (-not $DryRun) {
                     Copy-Item -Path $targetPath -Destination $bakPath -Force
-                    Write-Host "     Đã sao lưu sang $bakPath" -ForegroundColor DarkGray
+                    Write-Host "     Da sao luu sang $bakPath" -ForegroundColor DarkGray
                     Set-Content -Path $targetPath -Value $templateContent -Encoding UTF8
                 }
             } else {
-                $choice = Read-Host "[?] File cấu hình 'mcp.json' đã tồn tại. Bạn có muốn [O]verwrite (ghi đè), [M]erge (hợp nhất server cũ và mới), hay [S]kip (bỏ qua)? [O/M/s]"
+                $choice = Read-Host "[?] File cau hinh 'mcp.json' da ton tai. Ban co muon [O]verwrite (ghi de), [M]erge (hop nhat server cu va moi), hay [S]kip (bo qua)? [O/M/s]"
                 $choice = if ($choice) { $choice.Trim() } else { "" }
                 if ($choice -match '^[mM]$') {
-                    Write-Host "  -> Đang hợp nhất $targetFileName (sao lưu sang $bakPath)..." -ForegroundColor Cyan
+                    Write-Host "  -> Dang hop nhat $targetFileName (sao luu sang $bakPath)..." -ForegroundColor Cyan
                     if (-not $DryRun) {
                         Copy-Item -Path $targetPath -Destination $bakPath -Force
-                        Write-Host "     Đã sao lưu sang $bakPath" -ForegroundColor DarkGray
+                        Write-Host "     Da sao luu sang $bakPath" -ForegroundColor DarkGray
                         try {
                             $existingJson = Get-Content -Path $targetPath -Raw -Encoding UTF8 | ConvertFrom-Json
                             $newJson = $templateContent | ConvertFrom-Json
@@ -752,44 +768,44 @@ foreach ($entry in $files.GetEnumerator()) {
                             }
                             $mergedJsonStr = $existingJson | ConvertTo-Json -Depth 10
                             Set-Content -Path $targetPath -Value $mergedJsonStr -Encoding UTF8
-                            Write-Host "  -> Đã hợp nhất $targetFileName thành công." -ForegroundColor Green
+                            Write-Host "  -> Da hop nhat $targetFileName thanh cong." -ForegroundColor Green
                         } catch {
-                            Write-Warning "Không thể hợp nhất JSON: $($_.Exception.Message). Tiến hành ghi đè bằng template."
+                            Write-Warning "Khong the hop nhat JSON: $($_.Exception.Message). Tien hanh ghi de bang template."
                             Set-Content -Path $targetPath -Value $templateContent -Encoding UTF8
                         }
                     }
                 } elseif ($choice -match '^[oO]$') {
-                    Write-Host "  -> Ghi đè file $targetFileName (đã sao lưu sang $bakPath)" -ForegroundColor Green
+                    Write-Host "  -> Ghi de file $targetFileName (da sao luu sang $bakPath)" -ForegroundColor Green
                     if (-not $DryRun) {
                         Copy-Item -Path $targetPath -Destination $bakPath -Force
-                        Write-Host "     Đã sao lưu sang $bakPath" -ForegroundColor DarkGray
+                        Write-Host "     Da sao luu sang $bakPath" -ForegroundColor DarkGray
                         Set-Content -Path $targetPath -Value $templateContent -Encoding UTF8
                     }
                 } else {
-                    Write-Host "  -> Bỏ qua $targetFileName (giữ nguyên file hiện tại)." -ForegroundColor Yellow
+                    Write-Host "  -> Bo qua $targetFileName (giu nguyen file hien tai)." -ForegroundColor Yellow
                 }
             }
         } else {
             # File YAML (config.yml, models.yml)
             if ($isForce) {
-                Write-Host "  -> File cấu hình '$targetFileName' đã tồn tại. [-Force / -OverwriteAll] Tự động sao lưu và ghi đè." -ForegroundColor Yellow
+                Write-Host "  -> File cau hinh '$targetFileName' da ton tai. [-Force / -OverwriteAll] Tu dong sao luu va ghi de." -ForegroundColor Yellow
                 if (-not $DryRun) {
                     Copy-Item -Path $targetPath -Destination $bakPath -Force
-                    Write-Host "     Đã sao lưu sang $bakPath" -ForegroundColor DarkGray
+                    Write-Host "     Da sao luu sang $bakPath" -ForegroundColor DarkGray
                     Set-Content -Path $targetPath -Value $templateContent -Encoding UTF8
                 }
             } else {
-                $choice = Read-Host "[?] File cấu hình '$targetFileName' đã tồn tại. Bạn có muốn [O]verwrite (ghi đè) hay [S]kip (bỏ qua)? [O/s]"
+                $choice = Read-Host "[?] File cau hinh '$targetFileName' da ton tai. Ban co muon [O]verwrite (ghi de) hay [S]kip (bo qua)? [O/s]"
                 $choice = if ($choice) { $choice.Trim() } else { "" }
                 if ($choice -match '^[oO]$') {
-                    Write-Host "  -> Ghi đè file $targetFileName (đã sao lưu sang $bakPath)" -ForegroundColor Green
+                    Write-Host "  -> Ghi de file $targetFileName (da sao luu sang $bakPath)" -ForegroundColor Green
                     if (-not $DryRun) {
                         Copy-Item -Path $targetPath -Destination $bakPath -Force
-                        Write-Host "     Đã sao lưu sang $bakPath" -ForegroundColor DarkGray
+                        Write-Host "     Da sao luu sang $bakPath" -ForegroundColor DarkGray
                         Set-Content -Path $targetPath -Value $templateContent -Encoding UTF8
                     }
                 } else {
-                    Write-Host "  -> Bỏ qua $targetFileName (giữ nguyên file hiện tại)." -ForegroundColor Yellow
+                    Write-Host "  -> Bo qua $targetFileName (giu nguyen file hien tai)." -ForegroundColor Yellow
                 }
             }
         }
@@ -817,7 +833,7 @@ $targetAgentsPath = Join-Path $OmpDir "AGENTS.md"
 if ($EnableMemorix) {
     $memSectionPath = Join-Path $templatesDir "memorix-agents-section.md"
     if (Test-Path $memSectionPath) {
-        Write-Host "  -> Tích hợp hướng dẫn Memorix vào $targetAgentsPath..." -ForegroundColor Green
+        Write-Host "  -> Tich hop huong dan Memorix vao $targetAgentsPath..." -ForegroundColor Green
         if (-not $DryRun -and (Test-Path $targetAgentsPath)) {
             $memSectionContent = Get-Content -Path $memSectionPath -Raw -Encoding UTF8
             Add-Content -Path $targetAgentsPath -Value "`r`n$memSectionContent" -Encoding UTF8
@@ -835,26 +851,26 @@ if (Test-Path $srcSkills) {
     }
 
     if ($EnableMemorix) {
-        Write-Host "  -> Copying toàn bộ skills/ (bao gồm memorix) sang $targetSkills (overwrite)" -ForegroundColor Green
+        Write-Host "  -> Copying toan bo skills/ (bao gom memorix) sang $targetSkills (overwrite)" -ForegroundColor Green
         if (-not $DryRun) {
             Get-ChildItem -Path $srcSkills -Directory | ForEach-Object {
                 Copy-Item -Path $_.FullName -Destination $targetSkills -Recurse -Force
             }
         }
     } else {
-        Write-Host "  -> Copying skills/ (bỏ qua memorix-*) sang $targetSkills (overwrite)" -ForegroundColor Green
+        Write-Host "  -> Copying skills/ (bo qua memorix-*) sang $targetSkills (overwrite)" -ForegroundColor Green
         if (-not $DryRun) {
             Get-ChildItem -Path $srcSkills -Directory | Where-Object { $_.Name -notlike "memorix-*" } | ForEach-Object {
                 Copy-Item -Path $_.FullName -Destination $targetSkills -Recurse -Force
             }
         }
 
-        # Dọn dẹp các kỹ năng memorix-* đã tồn tại trong $targetSkills bằng cách chuyển vào Thùng rác (Recycle Bin)
+        # Don dep cac ky nang memorix-* da ton tai trong $targetSkills bang cach chuyen vao Thung rac (Recycle Bin)
         if (Test-Path $targetSkills) {
             Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
             $existingMemorixSkills = Get-ChildItem -Path $targetSkills -Directory -Filter "memorix-*" -ErrorAction SilentlyContinue
             foreach ($memSkill in $existingMemorixSkills) {
-                Write-Host "  -> Di chuyển kỹ năng '$($memSkill.Name)' vào Thùng rác (Recycle Bin)..." -ForegroundColor Yellow
+                Write-Host "  -> Di chuyen ky nang '$($memSkill.Name)' vao Thung rac (Recycle Bin)..." -ForegroundColor Yellow
                 if (-not $DryRun) {
                     try {
                         [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory(
@@ -863,7 +879,7 @@ if (Test-Path $srcSkills) {
                             [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin
                         )
                     } catch {
-                        Write-Warning "Không thể di chuyển '$($memSkill.FullName)' vào Thùng rác: $($_.Exception.Message)"
+                        Write-Warning "Khong the di chuyen '$($memSkill.FullName)' vao Thung rac: $($_.Exception.Message)"
                     }
                 }
             }
