@@ -826,8 +826,31 @@ Write-Host "==> Copying static files and skills..." -ForegroundColor Cyan
 foreach ($mdFile in @("AGENTS.md", "RULES.md", "SYSTEM.md")) {
     $srcPath = Join-Path $PSScriptRoot $mdFile
     $targetPath = Join-Path $OmpDir $mdFile
-    if (Test-Path $srcPath) {
-        Write-Host "  -> Copying $mdFile to $targetPath (overwrite)" -ForegroundColor Green
+    if (-not (Test-Path $srcPath)) { continue }
+
+    if (Test-Path $targetPath) {
+        if ($Force -or $OverwriteAll) {
+            Write-Host "  -> File '$targetPath' da ton tai. [-Force / -OverwriteAll] Tu dong sao luu va ghi de." -ForegroundColor Yellow
+            $bak = "$targetPath.bak"
+            Copy-Item -Path $targetPath -Destination $bak -Force
+            if (-not $DryRun) {
+                Copy-Item -Path $srcPath -Destination $targetPath -Force
+            }
+        } else {
+            $choice = Read-Host "[?] File '$targetPath' da ton tai. Ban co muon [O]verwrite (ghi de) hay [S]kip (bo qua)? [O/s]"
+            if ($choice.Trim().ToLower() -eq 's') {
+                Write-Host "  -> Bo qua file $targetPath." -ForegroundColor DarkGray
+            } else {
+                $bak = "$targetPath.bak"
+                Copy-Item -Path $targetPath -Destination $bak -Force
+                if (-not $DryRun) {
+                    Copy-Item -Path $srcPath -Destination $targetPath -Force
+                }
+                Write-Host "  -> Ghi de file $targetPath thanh cong." -ForegroundColor Green
+            }
+        }
+    } else {
+        Write-Host "  -> Tao moi file $targetPath thanh cong." -ForegroundColor Green
         if (-not $DryRun) {
             Copy-Item -Path $srcPath -Destination $targetPath -Force
         }
