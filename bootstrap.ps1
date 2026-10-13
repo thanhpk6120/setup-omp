@@ -180,9 +180,19 @@ if ($installGitnexus) {
         }
     }
 
-    $gn = Get-Command "gitnexus" -ErrorAction SilentlyContinue
-    if ($gn -and $gn.Source) {
-        $absGn = ($gn.Source).Replace('\', '\\')
+    $gn = Get-Command "gitnexus.cmd" -ErrorAction SilentlyContinue
+    if (-not $gn) {
+        $gn = Get-Command "gitnexus" -ErrorAction SilentlyContinue
+    }
+    $gnPath = if ($gn -and $gn.Source) { $gn.Source } else { "" }
+    if ($gnPath -and $gnPath.EndsWith(".ps1", [System.StringComparison]::OrdinalIgnoreCase)) {
+        $cmdCandidate = [System.IO.Path]::ChangeExtension($gnPath, ".cmd")
+        if (Test-Path $cmdCandidate) {
+            $gnPath = $cmdCandidate
+        }
+    }
+    if ($gnPath) {
+        $absGn = $gnPath.Replace('\', '\\')
         $gitnexusArgsJson = '"/c", "' + $absGn + '", "mcp"'
     } else {
         throw "Lỗi: Không tìm thấy gitnexus bằng Get-Command. Dừng cài đặt."
