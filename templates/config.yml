@@ -7,34 +7,34 @@ theme:
   light: light
 setupVersion: 2
 modelRoles:
-  default: 9router/claude-sonnet-5:medium
-  smol: 9router/claude-sonnet-5:medium
-  slow: 9router/claude-opus-5:xhigh
-  vision: 9router/claude-sonnet-5:medium
-  plan: 9router/claude-opus-5:high
-  designer: 9router/claude-sonnet-5:medium
-  commit: 9router/claude-sonnet-5:medium
-  tiny: 9router/claude-haiku-4-5-20251001
-  task: 9router/claude-sonnet-5:medium
-  advisor: 9router/claude-opus-5:xhigh
+  default: custom/claude-sonnet-5:medium
+  smol: custom/claude-sonnet-5:medium
+  slow: custom/claude-opus-5:xhigh
+  vision: custom/claude-sonnet-5:medium
+  plan: custom/claude-opus-5:high
+  designer: custom/claude-sonnet-5:medium
+  commit: custom/claude-sonnet-5:medium
+  tiny: custom/claude-haiku-4-5-20251001
+  task: custom/claude-sonnet-5:medium
+  advisor: custom/claude-opus-5:xhigh
 computer:
   enabled: true
 task:
   agentModelOverrides:
-    task: 9router/claude-opus-5:medium
-    scout: 9router/claude-sonnet-5:medium
-    sonic: 9router/claude-sonnet-5:medium
-    docs-fact-check: 9router/claude-opus-5:high
-    docs-reviewer: 9router/claude-opus-5:medium
-    docs-init: 9router/claude-opus-5:medium
-    docs-update: 9router/claude-opus-5:medium
-    docs-reader: 9router/claude-sonnet-5:medium
-    architect: 9router/claude-opus-5:medium
-    plan-reviewer: 9router/claude-opus-5:medium
-    reviewer: 9router/claude-opus-5:medium
-    security-reviewer: 9router/claude-opus-5:high
-    dely-implementer: 9router/claude-sonnet-5:medium
-    dely-reviewer: 9router/claude-opus-5:high
+    task: custom/claude-opus-5:medium
+    scout: custom/claude-sonnet-5:medium
+    sonic: custom/claude-sonnet-5:medium
+    docs-fact-check: custom/claude-opus-5:high
+    docs-reviewer: custom/claude-opus-5:medium
+    docs-init: custom/claude-opus-5:medium
+    docs-update: custom/claude-opus-5:medium
+    docs-reader: custom/claude-sonnet-5:medium
+    architect: custom/claude-opus-5:medium
+    plan-reviewer: custom/claude-opus-5:medium
+    reviewer: custom/claude-opus-5:medium
+    security-reviewer: custom/claude-opus-5:high
+    dely-implementer: custom/claude-sonnet-5:medium
+    dely-reviewer: custom/claude-opus-5:high
   eager: always
   batch: true
   maxConcurrency: 16

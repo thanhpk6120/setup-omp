@@ -1,5 +1,5 @@
 providers:
-  9router:
+  custom:
     baseUrl: __AI_BASE_URL__
     api: openai-completions
     apiKey: __AI_API_KEY__
